@@ -15,23 +15,26 @@
    :right (apply max (map #(.-x %) points))}
 )
 
-(defn draw-it [text shape color]
+(defn draw-it [polygon color]
   (let [graphics (q/create-graphics (q/width) (q/height) :p2d)]
     (q/with-graphics 
       graphics
       (q/no-stroke)
       (q/with-fill color
         (.draw 
-          (.toShape
-            (.union 
-              (.toPolygon text) 
-              shape))
-            graphics)))
+          (.toShape polygon)
+          graphics)))
     graphics))
 
 (defn setup []
   (RG/init (quil.applet/current-applet))
-  (let [font (RFont. "FreeSans.ttf" 100)
+  (RCommand/setSegmentLength 1)
+  (RCommand/setSegmentator RCommand/UNIFORMLENGTH)
+  (let [timestamp (format "%05d_%02d_%02d_%02d_%02d_%02d_%03d"
+                            (q/year) (q/month) (q/day) 
+                            (q/hour) (q/minute) (q/seconds)
+                            (mod (System/currentTimeMillis) 1000))
+        font (RFont. "Colfax-WebMedium.ttf" 100)
         group (.toGroup font "Quin Kennedy")
         bounds (getBounds (.getPoints group))]
     (.scale group 
@@ -48,26 +51,33 @@
                               (:top bounds2))) 
                         2) 
                      (:top bounds2)))
-      ; Set frame rate to 30 frames per second.
-      (q/frame-rate 30)
-      ; Set color mode to HSB (HSV) instead of default RGB.
-      (q/color-mode :rgb)
-      (RCommand/setSegmentLength 1)
-      (RCommand/setSegmentator RCommand/UNIFORMLENGTH)
-      ; setup function returns initial state. It contains
-      ; circle color and position.
-      {:font font
-       :name group
-       :top  (draw-it group
+      (let [topPoly (.union
+                      (.toPolygon group)
                       (geomerative.RPolygon/createRectangle 
-                        0 0 (q/width) (/ (q/height) 2))
-                      [255 0 0])
-       :bottom (draw-it group
-                        (geomerative.RPolygon/createRectangle 
-                          0 (/ (q/height) 2) (q/width) (/ (q/height) 2))
-                        [0 0 255])
-       :frame 0}
-)))
+                            0 0 (q/width) (/ (q/height) 2)))
+            bottomPoly (.union
+                         (.toPolygon group)
+                         (geomerative.RPolygon/createRectangle 
+                            0 (/ (q/height) 2) (q/width) (/ (q/height) 2)))]
+        ; Set frame rate to 30 frames per second.
+        (q/frame-rate 30)
+        ; Set color mode to HSB (HSV) instead of default RGB.
+        (q/color-mode :rgb)
+        (RG/saveShape (format "output/%s_layer1.svg" timestamp) 
+                      (.toShape bottomPoly))
+        (RG/saveShape (format "output/%s_layer2.svg" timestamp) 
+                      (.toShape topPoly))
+        ; setup function returns initial state. It contains
+        ; circle color and position.
+        {:font font
+         :name group
+         :timestamp timestamp
+         :top  (draw-it topPoly
+                        [255 0 0])
+         :bottom (draw-it bottomPoly
+                          [0 0 255])
+         :frame 0}
+))))
 
 (defn update-state [state]
   (update state :frame inc))
@@ -87,12 +97,13 @@
 
 (defn draw-state [state]
   (when (= (:frame state) 1)
-    (let [box (getBounds (.getPoints (:name state)))]
+    (let [box (getBounds (.getPoints (:name state)))
+          ]
       (q/background 255)
       (q/blend-mode :subtract)
       (q/image (:top state) 0 0)
       (q/image (:bottom state) 0 0)
-      (q/save "output/out")
+      (q/save (format "output/%s_render" (:timestamp state)))
       )))
     ;(q/no-stroke)
     ;(q/blend-mode :subtract)
