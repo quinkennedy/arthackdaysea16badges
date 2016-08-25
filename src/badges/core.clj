@@ -65,11 +65,12 @@
        :bottom (draw-it group
                         (geomerative.RPolygon/createRectangle 
                           0 (/ (q/height) 2) (q/width) (/ (q/height) 2))
-                        [0 0 255])}
+                        [0 0 255])
+       :frame 0}
 )))
 
 (defn update-state [state]
-  state)
+  (update state :frame inc))
 ;  ; Update sketch state by changing circle color and position.
 ;  {:color (mod (+ (:color state) 0.7) 255)
 ;   :angle (+ (:angle state) 0.1)})
@@ -85,11 +86,14 @@
     - padding))
 
 (defn draw-state [state]
-  (let [box (getBounds (.getPoints (:name state)))]
-    (q/background 255)
-    (q/blend-mode :subtract)
-    (q/image (:top state) 0 0)
-    (q/image (:bottom state) 0 0)))
+  (when (= (:frame state) 1)
+    (let [box (getBounds (.getPoints (:name state)))]
+      (q/background 255)
+      (q/blend-mode :subtract)
+      (q/image (:top state) 0 0)
+      (q/image (:bottom state) 0 0)
+      (q/save "output/out")
+      )))
     ;(q/no-stroke)
     ;(q/blend-mode :subtract)
     ;;(q/with-stroke [0 0]
