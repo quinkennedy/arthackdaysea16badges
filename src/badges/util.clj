@@ -9,6 +9,8 @@
 (def inch_size [3 4])
 (def pdf-dpi 72)
 (def pdf-size [11 8.5])
+(def font-size 100)
+(def fullname '("Quin" "Kennedy"))
 
 (defn get-timestamp []
   (format "%05d_%02d_%02d_%02d_%02d_%02d_%03d"
