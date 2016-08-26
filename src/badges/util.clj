@@ -7,6 +7,14 @@
 
 (def dpi 138)
 (def inch_size [3 4])
+(def pdf-dpi 72)
+(def pdf-size [11 8.5])
+
+(defn get-timestamp []
+  (format "%05d_%02d_%02d_%02d_%02d_%02d_%03d"
+          (q/year) (q/month) (q/day) 
+          (q/hour) (q/minute) (q/seconds)
+          (mod (System/currentTimeMillis) 1000)))
 
 (defn getBounds [points]
   (let [top (apply min (map #(.-y %) points))
@@ -48,24 +56,140 @@
   graphics)
 
 (defn save [state]
-  (let [timestamp (format "%05d_%02d_%02d_%02d_%02d_%02d_%03d"
-                            (q/year) (q/month) (q/day) 
-                            (q/hour) (q/minute) (q/seconds)
-                            (mod (System/currentTimeMillis) 1000))]
-    (RG/saveShape (format "output/%s_layer1.svg" timestamp) 
-                  (.toShape (:bottomPoly state)))
-    (RG/saveShape (format "output/%s_layer2.svg" timestamp) 
-                  (.toShape (:topPoly state)))
-    (let [contours (.-contours (:topPoly state))]
-      (doall
-      (for [i (range (count contours))]
-        (let [contour (get contours i)]
-          (RG/saveShape (format "output/%s_layer2_%02d_%b.svg"
-                                timestamp
-                                i
-                                (.isHole contour))
-                        (.toShape (.toPolygon contour)))))))
-    (q/save (format "output/%s_render" timestamp))))
+  (RG/saveShape (format "output/%s_layer1.svg" 
+                        (:timestamp state) )
+                (.toShape (:bottomPoly state)))
+  (RG/saveShape (format "output/%s_layer2.svg" 
+                        (:timestamp state))
+                (.toShape (:topPoly state)))
+  ;;
+  ;; Print out individual contours of Polygon
+  ;;
+  ;(let [contours (.-contours (:topPoly state))]
+  ;  (doall
+  ;  (for [i (range (count contours))]
+  ;    (let [contour (get contours i)]
+  ;      (RG/saveShape (format "output/%s_layer2_%02d_%b.svg"
+  ;                            timestamp
+  ;                            i
+  ;                            (.isHole contour))
+  ;                    (.toShape (.toPolygon contour)))))))
+  (q/save (format "output/%s_render" 
+                  (:timestamp state)))
+  ;;
+  ;; Render to PDF to match screen colors
+  ;;
+  (q/with-graphics
+    (:altGraphic state)
+    (q/background 255)
+    (q/blend-mode :subtract)
+    (q/image
+      (:topGraphic state)
+      0 0))
+  (q/with-graphics
+    (:pdf state)
+    (q/translate pdf-dpi (* pdf-dpi 0.25))
+    (q/scale (/ pdf-dpi dpi))
+    (q/image
+      (:altGraphic state)
+      0 0))
+  (q/with-graphics
+    (:altGraphic state)
+    (q/background 255)
+    (q/blend-mode :subtract)
+    (q/image
+      (:bottomGraphic state)
+      0 0))
+  (q/with-graphics
+    (:pdf state)
+    (q/translate pdf-dpi (* pdf-dpi 0.25))
+    (q/scale (/ pdf-dpi dpi))
+    (q/translate 0 (q/height))
+    (q/image
+      (:altGraphic state)
+      0 0))
+  ;;
+  ;; Render to PDF using Cyan and Magenta
+  ;;
+  (q/with-graphics
+    (:altGraphic state)
+    (q/background 255)
+    (q/blend-mode :blend))
+  (draw-it (:altGraphic state)
+                (:topPoly state)
+                [0 255 255])
+  (q/with-graphics
+    (:pdf state)
+    (q/translate pdf-dpi (* pdf-dpi 0.25))
+    (q/scale (/ pdf-dpi dpi))
+    (q/translate (q/width) 0)
+    (q/image
+      (:altGraphic state)
+      0 0))
+  (q/with-graphics
+    (:altGraphic state)
+    (q/background 255)
+    (q/blend-mode :blend))
+  (draw-it (:altGraphic state)
+                (:bottomPoly state)
+                [255 0 255])
+  (q/with-graphics
+    (:pdf state)
+    (q/translate pdf-dpi (* pdf-dpi 0.25))
+    (q/scale (/ pdf-dpi dpi))
+    (q/translate (q/width) (q/height))
+    (q/image
+      (:altGraphic state)
+      0 0))
+  ;;
+  ;; Render to PDF with Red Blue
+  ;;
+  (q/with-graphics
+    (:altGraphic state)
+    (q/background 255)
+    (q/blend-mode :blend))
+  (draw-it (:altGraphic state)
+                (:topPoly state)
+                [255 0 0])
+  (q/with-graphics
+    (:pdf state)
+    (q/translate pdf-dpi (* pdf-dpi 0.25))
+    (q/scale (/ pdf-dpi dpi))
+    (q/translate (* (q/width) 2) 0)
+    (q/image
+      (:altGraphic state)
+      0 0))
+  (q/with-graphics
+    (:altGraphic state)
+    (q/background 255)
+    (q/blend-mode :blend))
+  (draw-it (:altGraphic state)
+                (:bottomPoly state)
+                [0 0 255])
+  (q/with-graphics
+    (:pdf state)
+    (q/translate pdf-dpi (* pdf-dpi 0.25))
+    (q/scale (/ pdf-dpi dpi))
+    (q/translate (* (q/width) 2) (q/height))
+    (q/image
+      (:altGraphic state)
+      0 0)
+  ;;
+  ;; Render to PDF with inverted screen colors
+  ;;
+  ;(q/with-graphics
+  ;  (:pdf state)
+  ;  (q/translate pdf-dpi (* pdf-dpi 0.25))
+  ;  (q/scale (/ pdf-dpi dpi))
+  ;  (q/translate (* (q/width) 2) 0)
+  ;  (q/image
+  ;    (:topGraphic state)
+  ;    0 0)
+  ;  (q/translate 0 (q/height))
+  ;  (q/image
+  ;    (:bottomGraphic state)
+  ;    0 0)
+    (.dispose (:pdf state))))
 
 (def the-e [[0 0 0 0 0 0 0 0 0 0]
             [0 0 1 1 1 1 1 1 0 0]
