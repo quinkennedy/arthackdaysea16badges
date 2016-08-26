@@ -14,6 +14,7 @@ Plugin 'kien/rainbow_parentheses.vim'
 call vundle#end()
 filetype plugin indent on
 nnoremap <F5> :Require<cr>
+nnoremap <F6> :Require!<cr>
 
 set exrc
 set secure

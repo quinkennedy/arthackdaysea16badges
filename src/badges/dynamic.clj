@@ -10,11 +10,7 @@
   (RG/init (quil.applet/current-applet))
   (RCommand/setSegmentLength 1)
   (RCommand/setSegmentator RCommand/UNIFORMLENGTH)
-  (let [timestamp (format "%05d_%02d_%02d_%02d_%02d_%02d_%03d"
-                            (q/year) (q/month) (q/day) 
-                            (q/hour) (q/minute) (q/seconds)
-                            (mod (System/currentTimeMillis) 1000))
-        font (RFont. "Colfax-WebMedium.ttf" 100)
+  (let [font (RFont. "Colfax-WebMedium.ttf" 100)
         group (.toGroup font "Quin Kennedy")
         bounds (util/getBounds (.getPoints group))]
     (.scale group 
@@ -45,37 +41,51 @@
                            badgeRect
                            (geomerative.RPolygon/createRectangle 
                              (:left bounds3) (+ (:top bounds3) (/ (:height bounds3) 2))
-                             (:width bounds3) (/ (:height bounds3) 2))))]
+                             (:width bounds3) (/ (:height bounds3) 2))))
+            polygons (util/add-e topPoly bottomPoly)]
         ; Set frame rate to 30 frames per second.
         (q/frame-rate 30)
         ; Set color mode to HSB (HSV) instead of default RGB.
-        (q/color-mode :rgb)
-        (RG/saveShape (format "output/%s_layer1.svg" timestamp) 
-                      (.toShape bottomPoly))
-        (RG/saveShape (format "output/%s_layer2.svg" timestamp) 
-                      (.toShape topPoly))
+        (q/color-mode :hsb)
         ; setup function returns initial state. It contains
         ; circle color and position.
         {:font font
+         :ee "hi"
          :name group
-         :timestamp timestamp
-         :top  (util/draw-it topPoly
-                        [0 64 255])
-         :bottom (util/draw-it bottomPoly
-                          [64 255 0])
+         :topPoly (util/clean-up (first polygons))
+         :bottomPoly (util/clean-up (second polygons))
+         :topGraphic  (q/create-graphics (q/width) (q/height) :p2d)
+         :bottomGraphic  (q/create-graphics (q/width) (q/height) :p2d)
          :frame 0}
 ))))
 
 (defn update-state [state]
-  (update state :frame inc))
+  (update
+    (if (nil? (:ee state))
+      (update 
+        (update 
+          state 
+          :bottomPoly 
+          util/add-e)
+        :topPoly 
+        util/add-e)
+      state)
+    :frame
+    inc))
 
 (defn draw-state [state]
+  ;set up canvas
+  (q/background 255)
+  (q/blend-mode :subtract)
+  ;draw to off-screen buffers
+  (util/draw-it (:topGraphic state)
+                         (:topPoly state)
+                         [10 255 155])
+  (util/draw-it (:bottomGraphic state)
+                         (:bottomPoly state)
+                         [200 255 55])
+  ;combine buffers on-screen
+  (q/image (:topGraphic state) 0 0)
+  (q/image (:bottomGraphic state) 0 0)
   (when (= (:frame state) 1)
-    (let [box (util/getBounds (.getPoints (:name state)))
-          ]
-      (q/background 255)
-      (q/blend-mode :subtract)
-      (q/image (:top state) 0 0)
-      (q/image (:bottom state) 0 0)
-      (q/save (format "output/%s_render" (:timestamp state)))
-      )))
+    (util/save state)))
