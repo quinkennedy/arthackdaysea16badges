@@ -11,9 +11,21 @@
 (def pdf-size [11 8.5])
 (def font-size 100)
 (def fullname '("Quin" "Kennedy"))
-(def colors [[255 0 0]
-             [0 255 0]
-             [0 0 255]])
+(def colors [[255 93 48]
+             [1 163 160]
+             [0 150 199]
+             ])
+
+(defn get-color [n]
+  (mapv #(- 255 %)
+        (nth colors n)))
+
+(defn createPolyRect [x y w h]
+  (geomerative.RPolygon/createRectangle
+    x y w h))
+
+(defn union-all [polys]
+  (reduce #(.union %1 %2) polys))
 
 (defn get-timestamp []
   (format "%05d_%02d_%02d_%02d_%02d_%02d_%03d"
@@ -275,7 +287,8 @@
                  not-e-points (shuffle (filter #(not (in-e? %)) allPoints))
                  points (concat 
                           (take 
-                            (/ (count not-e-points) (count polygons)) 
+                            (/ (count e-points) 3)
+                            ;(/ (count not-e-points) (count polygons)) 
                             e-points) 
                           not-e-points)
                  totalHeight (/ (q/height) 2)
@@ -295,7 +308,7 @@
                      (recur (rest ps) 
                             (mapv #(.xor % rect) pgs))
                      (let [select (int (rand (count pgs)))]
-                       (if (< 0.5 (rand))
+                       (if true;(< 0.5 (rand))
                          (recur (rest ps)
                                 (update pgs
                                         select

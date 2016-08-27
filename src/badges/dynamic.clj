@@ -27,49 +27,111 @@
 
 (defn update-state [state]
   (let [name-group  (util/geoify-name (:font state) util/fullname)
+        raw-bounds  (util/getBounds (.getPoints name-group))
+        border      (* util/dpi 0.1)
         name-bounds (util/addPad 
-                      (util/getBounds (.getPoints name-group)) 
-                      (* util/dpi 0.1))
+                      raw-bounds
+                      border)
         badge-rect  (geomerative.RPolygon/createRectangle
-                      0 0 (q/width) (q/height))]
+                      0 0 (q/width) (q/height))
+        short-height (/ (:height name-bounds) 4)
+        top1        (:top name-bounds)
+        top2        (+ (:top raw-bounds) (/ (:height raw-bounds) 4))
+        top3        (- (:bottom name-bounds) short-height)
+        half-width (/ (:width name-bounds) 2)
+        third-width (/ (:width name-bounds) 3)
+        quarter-width (/ (:width name-bounds) 4)
+        tall-height (/ (:height raw-bounds) 2)
+        rect-nums [[(:left name-bounds) 
+                    top1
+                    quarter-width 
+                    short-height]
+                   [(+ (:left name-bounds) third-width) 
+                    top1
+                    (* third-width 2) 
+                    short-height]
+                   [(:left name-bounds) 
+                    top2
+                    (* third-width 2) 
+                    tall-height]
+                   [(+ (:left name-bounds) (* quarter-width 3))
+                    top2
+                    quarter-width
+                    tall-height]
+                   [(:left name-bounds) 
+                    top3
+                    quarter-width 
+                    short-height]
+                   [(+ (:left name-bounds) third-width)
+                    top3
+                    (* third-width 2)
+                    short-height]
+                   [(:left name-bounds) 
+                    top1
+                    (:width name-bounds) 
+                    short-height]
+                   [(:left name-bounds) 
+                    top2
+                    (:width name-bounds) 
+                    tall-height]
+                   [(:left name-bounds) 
+                    top3
+                    (:width name-bounds) 
+                    short-height]]]
     (merge state
            {:frame (inc (:frame state))
-            :polygons (util/add-e
+            :polygons ;(util/add-e
                         [(.union
                            (.toPolygon name-group)
                            (.xor
                              badge-rect
-                             (geomerative.RPolygon/createRectangle
-                               (:left name-bounds)
-                               (:top name-bounds)
-                               (:width name-bounds)
-                               (* (/ (:height name-bounds) 3) 2))))
+                             (util/union-all
+                               (mapv 
+                                 #(apply 
+                                    util/createPolyRect
+                                    %)
+                                 [(nth rect-nums 0)
+                                  (nth rect-nums 4)
+                                  (nth rect-nums 7)]))))
                          (.union
                            (.toPolygon name-group)
                            (.xor
                              badge-rect
-                             (geomerative.RPolygon/createRectangle
-                               (:left name-bounds)
-                               (+ (:top name-bounds)
-                                  (/ (:height name-bounds) 3))
-                               (:width name-bounds)
-                               (* (/ (:height name-bounds) 3) 2))))
+                             (util/union-all
+                               (mapv
+                                 #(apply
+                                    util/createPolyRect
+                                    %)
+                                 [(nth rect-nums 3)
+                                  (nth rect-nums 6)
+                                  (nth rect-nums 8)]))))
                          (.union
                            (.toPolygon name-group)
                            (.xor
                              badge-rect
-                             (.union
-                               (geomerative.RPolygon/createRectangle
-                                 (:left name-bounds)
-                                 (:top name-bounds)
-                                 (:width name-bounds)
-                                 (/ (:height name-bounds) 3))
-                               (geomerative.RPolygon/createRectangle
-                                 (:left name-bounds)
-                                 (- (:bottom name-bounds)
-                                    (/ (:height name-bounds) 3))
-                                 (:width name-bounds)
-                                 (/ (:height name-bounds) 3)))))])})))
+                             (util/union-all
+                               (mapv
+                                 #(apply
+                                    util/createPolyRect
+                                    %)
+                                 [(nth rect-nums 1)
+                                  (nth rect-nums 2)
+                                  (nth rect-nums 5)]))))];)
+            })))
+                             ;(.xor
+                             ;  (util/createPolyRect
+                             ;    (:left name-bounds)
+                             ;    (:top name-bounds)
+                             ;    (:width name-bounds)
+                             ;    (:height name-bounds))
+                             ;  (util/union-all
+                             ;    (mapv
+                             ;      #(apply
+                             ;         util/createPolyRect
+                             ;         %)
+                             ;      [(nth rect-nums 0)
+                             ;       (nth rect-nums 3)
+                             ;       (nth rect-nums 4)])))))])})))
 
 (defn draw-state [state]
   (when (not (zero? (:frame state)))
@@ -80,7 +142,7 @@
       (for [i (range (count (:graphics state)))]
         (util/draw-it (nth (:graphics state) i)
                       (nth (:polygons state) i)
-                      (nth util/colors i))))
+                      (util/get-color i))))
     ;combine buffers on-screen
     (q/blend-mode :subtract)
     (dorun
