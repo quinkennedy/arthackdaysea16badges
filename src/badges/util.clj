@@ -11,6 +11,9 @@
 (def pdf-size [11 8.5])
 (def font-size 100)
 (def fullname '("Quin" "Kennedy"))
+(def colors [[255 0 0]
+             [0 255 0]
+             [0 0 255]])
 
 (defn get-timestamp []
   (format "%05d_%02d_%02d_%02d_%02d_%02d_%03d"
@@ -47,9 +50,34 @@
     [:width :height]
     + (* padding 2)))
 
+(defn geoify-name [font fullname]
+  ; render first and last name
+  (let [group (.toGroup font (first fullname))
+        group2 (.toGroup font (second fullname))]
+    ; add last name under first name
+    (.translate group2 0 font-size)
+    (.addGroup group group2)
+    (let [bounds (getBounds (.getPoints group))]
+      ; scale name to fit horizontally
+      (.scale group 
+              (min 1 
+                   (/ (- (q/width) 
+                         (* dpi (* 0.3 2))) 
+                      (:width bounds))))
+      (let [bounds2 (getBounds (.getPoints group))]
+        ; align bottom of name with middle of badge
+        (.translate group 
+                    (- (* dpi 0.3) (:left bounds2)) 
+                    (- (- (/ (q/height) 2)
+                          (:bottom bounds2))
+                       (* dpi 0.3)))
+        group))))
+
 (defn draw-it [graphics polygon color]
   (q/with-graphics 
     graphics
+    (q/clear)
+    ;(q/background 255 255 255 0)
     (q/no-stroke)
     (q/with-fill color
       (.draw 
@@ -58,12 +86,12 @@
   graphics)
 
 (defn save [state]
-  (RG/saveShape (format "output/%s_layer1.svg" 
-                        (:timestamp state) )
-                (.toShape (:bottomPoly state)))
-  (RG/saveShape (format "output/%s_layer2.svg" 
-                        (:timestamp state))
-                (.toShape (:topPoly state)))
+  (dorun
+    (for [i (range (count (:polygons state)))]
+      (RG/saveShape (format "output/%s_layer%d.svg" 
+                            (:timestamp state)
+                            i)
+                  (.toShape (nth (:polygons state) i)))))
   ;;
   ;; Print out individual contours of Polygon
   ;;
