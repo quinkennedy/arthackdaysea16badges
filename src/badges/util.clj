@@ -38,6 +38,10 @@
 (defn map-values [m keys f & args]
   (reduce #(apply update-in %1 [%2] f args) m keys))
 
+;http://stackoverflow.com/a/9638672
+(defn update-vals [map vals f]
+    (reduce #(update-in % [%2] f) map vals))
+
 (defn addPad [bounds padding]
   (map-values
     (map-values 
@@ -249,17 +253,17 @@
                   (int (/ (second pt) 2)))
                 (int (/ (first pt) 2))))))
 
-(defn add-e [pa pb]
-  (let [size (/ (q/height) 2)
+(defn add-e [polygons]
+  (let [size     (/ (q/height) 2)
         paddingW (/ (- (q/width) 
                        size)
-                   2)
+                    2)
         paddingH (/ (q/height) 2)]
     (mapv #(.translate % 
                        (- paddingW)
                        (- paddingH))
-           [pa pb])
-    (let [polygons
+           polygons)
+    (let [polys
            (let [font (RFont. "Colfax-WebMedium.ttf" 300)
                  ePoly (.toPolygon (.toGroup font "E"))
                  numWide 20
@@ -269,16 +273,19 @@
                              (list x y))
                  e-points (shuffle (filter in-e? allPoints))
                  not-e-points (shuffle (filter #(not (in-e? %)) allPoints))
-                 points (concat (take 150 e-points) (take 50 not-e-points))
+                 points (concat 
+                          (take 
+                            (/ (count not-e-points) (count polygons)) 
+                            e-points) 
+                          not-e-points)
                  totalHeight (/ (q/height) 2)
                  totalWidth totalHeight
                  eachWide (/ totalWidth numWide)
                  eachHigh (/ totalHeight numHigh)]
              (loop [ps points
-                    p1 pa
-                    p2 pb]
+                    pgs polygons]
                (if (empty? ps)
-                 [p1 p2]
+                 pgs
                  (let [x (first (first ps))
                        y (second (first ps))
                        rect (geomerative.RPolygon/createRectangle
@@ -286,20 +293,23 @@
                               eachWide eachHigh)]
                    (if (in-e? (first ps))
                      (recur (rest ps) 
-                            (.xor p1 rect)
-                            (.xor p2 rect))
-                     (if (<= 0.5 (q/random 1)) 
-                       (recur (rest ps)
-                              (.xor p1 rect)
-                              p2)
-                       (recur (rest ps)
-                              p1
-                              (.xor p2 rect))))))))]
+                            (mapv #(.xor % rect) pgs))
+                     (let [select (int (rand (count pgs)))]
+                       (if (< 0.5 (rand))
+                         (recur (rest ps)
+                                (update pgs
+                                        select
+                                        #(.xor % rect)))
+                         (recur (rest ps)
+                                (update-vals 
+                                  pgs 
+                                  [select (mod (inc select) (count pgs))]
+                                  #(.xor % rect))))))))))]
       (mapv #(.translate %
                          paddingW
                          paddingH)
-            polygons)
-      polygons)))
+            polys)
+      polys)))
 
 (defn clean-up [polygon]
   (let [updated (.update polygon)

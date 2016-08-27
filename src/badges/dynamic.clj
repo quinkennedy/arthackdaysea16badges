@@ -7,6 +7,7 @@
             [badges.util :as util]))
 
 (defn setup []
+  (q/frame-rate 1)
   (RG/init (quil.applet/current-applet))
   (RCommand/setSegmentLength 1)
   (RCommand/setSegmentator RCommand/UNIFORMLENGTH)
@@ -21,6 +22,7 @@
                              (* util/pdf-dpi (second util/pdf-size))
                              :pdf
                              (format "pdf/%s_print.pdf" timestamp))
+     ; alternatively (q/frame-count)
      :frame 0}))
 
 (defn update-state [state]
@@ -32,41 +34,42 @@
                       0 0 (q/width) (q/height))]
     (merge state
            {:frame (inc (:frame state))
-            :polygons [(.union
-                         (.toPolygon name-group)
-                         (.xor
-                           badge-rect
-                           (geomerative.RPolygon/createRectangle
-                             (:left name-bounds)
-                             (:top name-bounds)
-                             (:width name-bounds)
-                             (* (/ (:height name-bounds) 3) 2))))
-                       (.union
-                         (.toPolygon name-group)
-                         (.xor
-                           badge-rect
-                           (geomerative.RPolygon/createRectangle
-                             (:left name-bounds)
-                             (+ (:top name-bounds)
-                                (/ (:height name-bounds) 3))
-                             (:width name-bounds)
-                             (* (/ (:height name-bounds) 3) 2))))
-                       (.union
-                         (.toPolygon name-group)
-                         (.xor
-                           badge-rect
-                           (.union
+            :polygons (util/add-e
+                        [(.union
+                           (.toPolygon name-group)
+                           (.xor
+                             badge-rect
                              (geomerative.RPolygon/createRectangle
                                (:left name-bounds)
                                (:top name-bounds)
                                (:width name-bounds)
-                               (/ (:height name-bounds) 3))
+                               (* (/ (:height name-bounds) 3) 2))))
+                         (.union
+                           (.toPolygon name-group)
+                           (.xor
+                             badge-rect
                              (geomerative.RPolygon/createRectangle
                                (:left name-bounds)
-                               (- (:bottom name-bounds)
+                               (+ (:top name-bounds)
                                   (/ (:height name-bounds) 3))
                                (:width name-bounds)
-                               (/ (:height name-bounds) 3)))))]})))
+                               (* (/ (:height name-bounds) 3) 2))))
+                         (.union
+                           (.toPolygon name-group)
+                           (.xor
+                             badge-rect
+                             (.union
+                               (geomerative.RPolygon/createRectangle
+                                 (:left name-bounds)
+                                 (:top name-bounds)
+                                 (:width name-bounds)
+                                 (/ (:height name-bounds) 3))
+                               (geomerative.RPolygon/createRectangle
+                                 (:left name-bounds)
+                                 (- (:bottom name-bounds)
+                                    (/ (:height name-bounds) 3))
+                                 (:width name-bounds)
+                                 (/ (:height name-bounds) 3)))))])})))
 
 (defn draw-state [state]
   (when (not (zero? (:frame state)))
