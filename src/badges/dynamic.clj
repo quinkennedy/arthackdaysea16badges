@@ -25,9 +25,8 @@
      ; alternatively (q/frame-count)
      :frame 0}))
 
-(defn update-state [state]
-  (let [name-group  (util/geoify-name (:font state) util/fullname)
-        raw-bounds  (util/getBounds (.getPoints name-group))
+(defn get-block-polys [group]
+  (let [raw-bounds  (util/getBounds (.getPoints group))
         border      (* util/dpi 0.1)
         name-bounds (util/addPad 
                       raw-bounds
@@ -78,60 +77,51 @@
                     top3
                     (:width name-bounds) 
                     short-height]]]
+    [(.union
+       (.toPolygon group)
+       (.xor
+         badge-rect
+         (util/union-all
+           (mapv 
+             #(apply 
+                util/createPolyRect
+                %)
+             [(nth rect-nums 0)
+              (nth rect-nums 4)
+              (nth rect-nums 7)]))))
+     (.union
+       (.toPolygon group)
+       (.xor
+         badge-rect
+         (util/union-all
+           (mapv
+             #(apply
+                util/createPolyRect
+                %)
+             [(nth rect-nums 3)
+              (nth rect-nums 6)
+              (nth rect-nums 8)]))))
+     (.union
+       (.toPolygon group)
+       (.xor
+         badge-rect
+         (util/union-all
+           (mapv
+             #(apply
+                util/createPolyRect
+                %)
+             [(nth rect-nums 1)
+              (nth rect-nums 2)
+              (nth rect-nums 5)]))))]))
+
+
+(defn update-state [state]
+  (let [name-group  (util/geoify-name (:font state) util/fullname)]
     (merge state
            {:frame (inc (:frame state))
             :polygons ;(util/add-e
-                        [(.union
-                           (.toPolygon name-group)
-                           (.xor
-                             badge-rect
-                             (util/union-all
-                               (mapv 
-                                 #(apply 
-                                    util/createPolyRect
-                                    %)
-                                 [(nth rect-nums 0)
-                                  (nth rect-nums 4)
-                                  (nth rect-nums 7)]))))
-                         (.union
-                           (.toPolygon name-group)
-                           (.xor
-                             badge-rect
-                             (util/union-all
-                               (mapv
-                                 #(apply
-                                    util/createPolyRect
-                                    %)
-                                 [(nth rect-nums 3)
-                                  (nth rect-nums 6)
-                                  (nth rect-nums 8)]))))
-                         (.union
-                           (.toPolygon name-group)
-                           (.xor
-                             badge-rect
-                             (util/union-all
-                               (mapv
-                                 #(apply
-                                    util/createPolyRect
-                                    %)
-                                 [(nth rect-nums 1)
-                                  (nth rect-nums 2)
-                                  (nth rect-nums 5)]))))];)
+                        (get-block-polys name-group);)
             })))
-                             ;(.xor
-                             ;  (util/createPolyRect
-                             ;    (:left name-bounds)
-                             ;    (:top name-bounds)
-                             ;    (:width name-bounds)
-                             ;    (:height name-bounds))
-                             ;  (util/union-all
-                             ;    (mapv
-                             ;      #(apply
-                             ;         util/createPolyRect
-                             ;         %)
-                             ;      [(nth rect-nums 0)
-                             ;       (nth rect-nums 3)
-                             ;       (nth rect-nums 4)])))))])})))
 
 (defn draw-state [state]
   (when (not (zero? (:frame state)))
