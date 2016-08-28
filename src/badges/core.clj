@@ -13,6 +13,7 @@
 ;  :settings #(q/no-smooth)
   ; update-state is called on each iteration before draw-state.
   :update dynamic/update-state
+  :key-typed dynamic/key-typed
   :draw dynamic/draw-state
   :features [:keep-on-top]
   ; This sketch uses functional-mode middleware.

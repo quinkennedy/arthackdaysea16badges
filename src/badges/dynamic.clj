@@ -114,14 +114,48 @@
               (nth rect-nums 2)
               (nth rect-nums 5)]))))]))
 
+(defn translate-polygon [polygon x y]
+  (let [clone (.toPolygon polygon)]
+    (.translate clone x y)
+    clone))
+
+(defn get-offset-polys [group font num-colors]
+  (let [line-width (:width (util/getBounds (.getPoints (.toGroup font "i"))))
+        poly (.toPolygon group)
+        polys (take num-colors (repeatedly #(.toPolygon group)))
+        badge-rect  (geomerative.RPolygon/createRectangle
+                      0 0 (q/width) (q/height))
+        ]
+    (map #(.xor
+            badge-rect
+            %)
+         (doall
+           (loop [accumulatedPolys (take num-colors 
+                                         (repeatedly #(.toPolygon group)))
+                  j                0]
+             (if (= j 10)
+               accumulatedPolys
+               (let [offsets (map #(util/polar-to-cartesian
+                                     (* line-width j)
+                                     (/ (* Math/PI 2 %) num-colors))
+                                  (range num-colors))]
+                 (recur (map #(.union %1 (translate-polygon %2 (first %3) (second %3)))
+                             accumulatedPolys
+                             (repeat poly)
+                             offsets)
+                        (inc j)))))))))
 
 (defn update-state [state]
   (let [name-group  (util/geoify-name (:font state) util/fullname)]
     (merge state
            {:frame (inc (:frame state))
-            :polygons ;(util/add-e
-                        (get-block-polys name-group);)
+            :polygons ;;(util/add-e
+                      ;  (get-block-polys name-group);)
+                      (get-offset-polys name-group (:font state) (count util/colors))
             })))
+
+(defn key-typed [state event]
+  (update state :frame #(if (= :s (:key event)) 0 %)))
 
 (defn draw-state [state]
   (when (not (zero? (:frame state)))

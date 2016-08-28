@@ -66,13 +66,17 @@
     [:width :height]
     + (* padding 2)))
 
+(defn polar-to-cartesian [radius angle]
+  [(* radius (Math/cos angle))
+   (* radius (Math/sin angle))])
+
 (defn geoify-name [font fullname]
   ; render first and last name
   (let [group (.toGroup font (first fullname))
         group2 (.toGroup font (second fullname))]
     ; add last name under first name
     (.translate group2 0 font-size)
-    (.addGroup group group2)
+    ;(.addGroup group group2)
     (let [bounds (getBounds (.getPoints group))]
       ; scale name to fit horizontally
       (.scale group 
