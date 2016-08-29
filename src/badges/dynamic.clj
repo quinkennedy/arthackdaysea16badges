@@ -119,6 +119,33 @@
     (.translate clone x y)
     clone))
 
+(defn get-circle-pattern []
+  (let [num-wide  15
+        step-size (/ (q/width) num-wide)
+        y-step    (Math/sqrt 
+                    (-
+                      (* step-size step-size)
+                      (Math/pow 
+                        (/ step-size 2) 
+                        2)))]
+    (loop [badge (geomerative.RPolygon.)
+           x     0
+           y     0
+           even  false]
+      (if (> y (+ (q/height) step-size))
+        badge
+        (let [next-badge (.union badge
+                                 (geomerative.RPolygon/createCircle
+                                   (+ x 
+                                      (if even 
+                                        (/ step-size 2)
+                                        0))
+                                   y
+                                   (/ (* 2 step-size) 5)))]
+          (if (> x (q/width))
+            (recur next-badge 0 (+ y y-step) (not even))
+            (recur next-badge (+ x step-size) y even)))))))
+
 (defn get-offset-polys [group font num-colors]
   (let [line-width (:width (util/getBounds (.getPoints (.toGroup font "i"))))
         poly (.toPolygon group)
@@ -146,12 +173,23 @@
                         (inc j)))))))))
 
 (defn update-state [state]
-  (let [name-group  (util/geoify-name (:font state) util/fullname)]
+  (let [name-group  (util/geoify-name (:font state) util/fullname)
+        name-poly   (.toPolygon name-group)
+        circle-pattern (get-circle-pattern)]
     (merge state
            {:frame (inc (:frame state))
             :polygons ;;(util/add-e
                       ;  (get-block-polys name-group);)
-                      (get-offset-polys name-group (:font state) (count util/colors))
+                      [
+                       (.union circle-pattern name-poly)
+                       (.union 
+                         (.xor (geomerative.RPolygon/createRectangle
+                                       0 0 (q/width) (q/height))
+                                     circle-pattern)
+                         name-poly)
+                       (geomerative.RPolygon.)
+                       ]
+                      ;(get-offset-polys name-group (:font state) (count util/colors))
             })))
 
 (defn key-typed [state event]

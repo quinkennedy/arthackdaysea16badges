@@ -13,7 +13,7 @@
 (def fullname '("Quin" "Kennedy"))
 (def colors [[255 93 48]
              [1 163 160]
-             [0 150 199]
+             [0 0 0]
              ])
 
 (defn get-color [n]
@@ -76,7 +76,7 @@
         group2 (.toGroup font (second fullname))]
     ; add last name under first name
     (.translate group2 0 font-size)
-    ;(.addGroup group group2)
+    (.addGroup group group2)
     (let [bounds (getBounds (.getPoints group))]
       ; scale name to fit horizontally
       (.scale group 
@@ -106,26 +106,27 @@
   graphics)
 
 (defn save [state]
-  (dorun
-    (for [i (range (count (:polygons state)))]
-      (RG/saveShape (format "output/%s_layer%d.svg" 
-                            (:timestamp state)
-                            i)
-                  (.toShape (nth (:polygons state) i)))))
-  ;;
-  ;; Print out individual contours of Polygon
-  ;;
-  ;(let [contours (.-contours (:topPoly state))]
-  ;  (doall
-  ;  (for [i (range (count contours))]
-  ;    (let [contour (get contours i)]
-  ;      (RG/saveShape (format "output/%s_layer2_%02d_%b.svg"
-  ;                            timestamp
-  ;                            i
-  ;                            (.isHole contour))
-  ;                    (.toShape (.toPolygon contour)))))))
-  (q/save (format "output/%s_render" 
-                  (:timestamp state))))
+  (let [timestamp (get-timestamp)]
+    (dorun
+      (for [i (range (count (:polygons state)))]
+        (RG/saveShape (format "output/%s_layer%d.svg" 
+                              timestamp
+                              i)
+                    (.toShape (nth (:polygons state) i)))))
+    ;;
+    ;; Print out individual contours of Polygon
+    ;;
+    ;(let [contours (.-contours (:topPoly state))]
+    ;  (doall
+    ;  (for [i (range (count contours))]
+    ;    (let [contour (get contours i)]
+    ;      (RG/saveShape (format "output/%s_layer2_%02d_%b.svg"
+    ;                            timestamp
+    ;                            i
+    ;                            (.isHole contour))
+    ;                    (.toShape (.toPolygon contour)))))))
+    (q/save (format "output/%s_render" 
+                    timestamp))))
 ;  ;;
 ;  ;; Render to PDF to match screen colors
 ;  ;;
