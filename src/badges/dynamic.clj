@@ -179,6 +179,8 @@
         name-poly   (.toPolygon name-group)
         badge-rect  (geomerative.RPolygon/createRectangle
                       0 0 (q/width) (q/height))
+        event-poly  (.xor badge-rect (util/get-event-poly (:font state)))
+        event-poly-ud (geomerative.RPolygon. event-poly)
         extra-points (concat (:points state) (util/rotate-points (:points state)))
         voronoi (util/voronoi extra-points)
         regions (.getRegions voronoi)
@@ -195,24 +197,33 @@
                                   20))))
                          polygons
                          extra-points)]
-    (merge state
-           {:frame (inc (:frame state))
-            :polygons [
-                       (.intersection
-                         badge-rect
-                         (.union
-                           name-poly
-                           (util/things-to-geom
-                             (take-nth 2 grown-polygons))))
-                       (.intersection
-                         badge-rect
-                         (.union
-                           name-poly
-                           (util/things-to-geom
-                             (take-nth 2 (rest grown-polygons)))))
-                       (geomerative.RPolygon.)
-                       ]
-            })))
+    ; turn the other event poly upsidedown
+    (.rotate event-poly-ud Math/PI (/ (q/width) 2) (/ (q/height) 2))
+    (let [layer2 (.intersection
+                   badge-rect
+                   (.intersection
+                     (.union
+                       name-poly
+                       (util/things-to-geom
+                         (take-nth 2 (rest grown-polygons))))
+                     event-poly-ud))]
+      (if (:upside-down state)
+        (.rotate layer2 Math/PI (/ (q/width) 2) (/ (q/height) 2)))
+      (merge state
+             {:frame (inc (:frame state))
+              :polygons [
+                         (.intersection
+                           badge-rect
+                           (.intersection
+                             (.union
+                               name-poly
+                               (util/things-to-geom
+                                 (take-nth 2 grown-polygons)))
+                             event-poly))
+                         layer2
+                         (geomerative.RPolygon.)
+                         ]
+              }))))
 
 (defn key-typed [state event]
   (case (:key event)
@@ -220,6 +231,8 @@
               {:frame 0})
     :r (merge state
               {:points (util/get-rand-radial-points)})
+    :u (merge state
+              {:upside-down (not (:upside-down state))})
     state))
 
 (defn draw-state [state]

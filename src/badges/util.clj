@@ -77,7 +77,7 @@
 (defn get-rand-points []
   (loop [i 0
          points []]
-    (if (= i 25)
+    (if (= i 26)
       points
       (recur (inc i)
              (conj points 
@@ -87,7 +87,7 @@
 (defn get-rand-radial-points []
   (loop [i 0
          points []]
-    (if (= i 25)
+    (if (= i 26)
       points
       (let [point (map + 
                        (polar-to-cartesian 
@@ -171,6 +171,15 @@
 (defn polar-to-cartesian [radius angle]
   [(* radius (Math/cos angle))
    (* radius (Math/sin angle))])
+
+(defn get-event-poly [font]
+  (let [polygon (.toPolygon (.toGroup font "Erasure"))]
+    (.scale polygon 0.5)
+    (let [bounds (getBounds (.getPoints polygon))]
+      (.translate polygon
+                  (- (/ (- (q/width) (:width bounds)) 2) (:left bounds))
+                  (/ (* (q/height) 9) 10))
+      polygon)))
 
 (defn geoify-name [font fullname]
   ; render first and last name
