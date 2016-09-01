@@ -4,10 +4,11 @@
            (geomerative RG))
   (:require [quil.core :as q]
             [quil.middleware :as m]
+            [thi.ng.geom.polygon :as gp]
             [badges.util :as util]))
 
 (defn setup []
-  (q/frame-rate 1)
+  (q/frame-rate 15)
   (RG/init (quil.applet/current-applet))
   (RCommand/setSegmentLength 1)
   (RCommand/setSegmentator RCommand/UNIFORMLENGTH)
@@ -23,7 +24,8 @@
                              :pdf
                              (format "pdf/%s_print.pdf" timestamp))
      ; alternatively (q/frame-count)
-     :frame 0}))
+     :frame 0
+     :points (util/get-rand-radial-points)}))
 
 (defn get-block-polys [group]
   (let [raw-bounds  (util/getBounds (.getPoints group))
@@ -175,40 +177,91 @@
 (defn update-state [state]
   (let [name-group  (util/geoify-name (:font state) util/fullname)
         name-poly   (.toPolygon name-group)
-        circle-pattern (get-circle-pattern)]
+        badge-rect  (geomerative.RPolygon/createRectangle
+                      0 0 (q/width) (q/height))
+        extra-points (concat (:points state) (util/rotate-points (:points state)))
+        voronoi (util/voronoi extra-points)
+        regions (.getRegions voronoi)
+        polygons (map util/region-to-polygon regions extra-points)
+        ; modulate polygons based on location
+        grown-polygons (map
+                         (fn [polygon center]
+                           (gp/polygon2 
+                             (thi.ng.geom.polygon/inset-polygon 
+                               (:points polygon) 
+                               (* (- (/ (second center) 
+                                        (q/height)) 
+                                     0.5) 
+                                  20))))
+                         polygons
+                         extra-points)]
     (merge state
            {:frame (inc (:frame state))
-            :polygons ;;(util/add-e
-                      ;  (get-block-polys name-group);)
-                      [
-                       (.union circle-pattern name-poly)
-                       (.union 
-                         (.xor (geomerative.RPolygon/createRectangle
-                                       0 0 (q/width) (q/height))
-                                     circle-pattern)
-                         name-poly)
+            :polygons [
+                       (.intersection
+                         badge-rect
+                         (.union
+                           name-poly
+                           (util/things-to-geom
+                             (take-nth 2 grown-polygons))))
+                       (.intersection
+                         badge-rect
+                         (.union
+                           name-poly
+                           (util/things-to-geom
+                             (take-nth 2 (rest grown-polygons)))))
                        (geomerative.RPolygon.)
                        ]
-                      ;(get-offset-polys name-group (:font state) (count util/colors))
             })))
 
 (defn key-typed [state event]
-  (update state :frame #(if (= :s (:key event)) 0 %)))
+  (case (:key event)
+    :s (merge state
+              {:frame 0})
+    :r (merge state
+              {:points (util/get-rand-radial-points)})
+    state))
 
 (defn draw-state [state]
   (when (not (zero? (:frame state)))
     ;set up canvas
     (q/background 255)
-    ;draw to off-screen buffers
-    (dorun
-      (for [i (range (count (:graphics state)))]
-        (util/draw-it (nth (:graphics state) i)
-                      (nth (:polygons state) i)
-                      (util/get-color i))))
-    ;combine buffers on-screen
-    (q/blend-mode :subtract)
-    (dorun
-      (for [graphic (:graphics state)]
-        (q/image graphic 0 0)))
-    (when (= (:frame state) 1)
-      (util/save state))))
+    ;get voronoi polygons
+    (let [extra-points (concat (:points state) (util/rotate-points (:points state)))
+          voronoi (util/voronoi extra-points)
+          regions (.getRegions voronoi)
+          polygons (map util/region-to-polygon regions extra-points)
+          ; modulate polygons based on location
+          grown-polygons (map
+                           (fn [polygon center]
+                             (gp/polygon2 
+                               (thi.ng.geom.polygon/inset-polygon 
+                                 (:points polygon) 
+                                 (* (- (/ (second center) 
+                                          (q/height)) 
+                                       0.5) 
+                                    20))))
+                           polygons
+                           extra-points)]
+      ;draw to off-screen buffers
+      (dorun
+        (for [i (range (count (:graphics state)))]
+          (util/draw-it
+            (nth (:graphics state) i)
+            (nth (:polygons state) i)
+            (util/get-color i))))
+      ;(util/draw-polygons
+      ;  (first (:graphics state))
+      ;  (util/get-color 0)
+      ;  (take-nth 2 grown-polygons))
+      ;(util/draw-polygons
+      ;  (second (:graphics state))
+      ;  (util/get-color 1)
+      ;  (take-nth 2 (rest grown-polygons)))
+      ;combine buffers on-screen
+      (q/blend-mode :subtract)
+      (dorun
+        (for [graphic (:graphics state)]
+          (q/image graphic 0 0)))
+      (when (= (:frame state) 1)
+        (util/save state)))))
