@@ -10,6 +10,12 @@ Emacs - run cider, open `core.clj` and press `C-c C-k` to evaluate the file.
 
 REPL - run `(require 'badges.core)`.
 
+## Controls
+
+'r' - regenerates points for background pattern
+'s' - saves SVG and TIFF images
+'u' - rotates one layer upside-down
+
 ## License
 
 ISC License
