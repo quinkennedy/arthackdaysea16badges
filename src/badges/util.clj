@@ -16,8 +16,7 @@
 (def pdf-size [11 8.5])
 (def font-size 100)
 (def fullname '("Quin" "Kennedy"))
-(def colors [[255 93 48]
-             [1 163 160]
+(def colors [[0 0 0]
              [0 0 0]
              ])
 
@@ -213,6 +212,192 @@
   [(* radius (Math/cos angle))
    (* radius (Math/sin angle))])
 
+(defn translate [poly x y]
+  (.translate poly x y)
+  poly)
+
+(defn get-text-polys [font font-info text-lines]
+  (flatten
+    (map (fn [line y]
+           (map (fn [character x]
+                  (translate
+                    (.toPolygon font
+                                character)
+                    (* x (:h-spacing font-info))
+                    (* y (:v-spacing font-info))))
+                line
+                (range)))
+           text-lines
+           (range))))
+
+;  (reduce (fn [poly [line index]]
+;            (let [line-polys (map #(translate (.toPolygon font %1) (* %2 (:h-spacing font-info)) 0) line (range))]
+;              (.translate line-poly 0 (* (:v-spacing font-info) index))
+;              (.union
+;                poly
+;                line-poly)))
+;          (geomerative.RPolygon.)
+;          (map list text-lines (range))))
+
+(defn measure-font [font]
+  (let [test-char \u00AC
+        one-char (.toGroup font (str test-char))
+        two-char (.toGroup font (str test-char test-char))
+        one-char-bounds (getBounds (.getPoints one-char))
+        two-char-bounds (getBounds (.getPoints two-char))]
+    {:width (:width one-char-bounds)
+     :height (:height one-char-bounds)
+     :v-spacing (.getLineSpacing font)
+     :h-spacing (- (:width two-char-bounds) (:width one-char-bounds))}))
+
+(defn get-rand-text-bg [num-wide num-high]
+  (for [y (range num-high)]
+    (apply str 
+           (map (fn [a] 
+                  (if (> (q/random 1) 0.03)
+                    \_
+                    \u00AC))
+                (range num-wide)))))
+
+(defn merge-text [text other]
+  (apply str 
+         (map (fn [a b]
+                (if (= b \ )
+                  a
+                  b))
+              text
+              (concat other (repeat \ )))))
+
+(defn add-ahd-brand [text]
+  (let [branding [""
+                  " ART_"
+                  " HACK"
+                  " _DAY"]]
+    (map merge-text
+         text
+         (concat branding (repeat "")))))
+
+(defn get-rand-string [brand num-wide]
+  (apply str
+         (reduce (fn [curr-text sym]
+                   (if (= sym \_)
+                     (apply str 
+                            (concat (rest curr-text)
+                                    (list (first curr-text))))
+                     (str curr-text \ )))
+                 brand
+                 (shuffle
+                   ;get string of '_' and ' ' characters
+                   ; '_' will be replaced by branding letters
+                   (take num-wide 
+                         (concat (repeat (count brand) \_) 
+                                 (repeat \ )))))))
+
+(defn add-event-brand [text num-wide]
+  (let [branding [""""""""""(str \  (get-rand-string "ERASURE" (- num-wide 2)) \ )]]
+    (map merge-text
+         text
+         (concat branding (repeat "")))))
+
+(defn rotate-char [char-polys x y num-wide num-high]
+  (let [char-index (+ (* y num-wide) x)
+        opp-index  (- (* num-wide num-high) char-index 1)]
+    (.translate 
+      (nth char-polys char-index) 
+      (/ (q/width) 2) 
+      (/ (q/height) 2))
+    char-polys))
+
+(defn build-full-font-cover [font font-info num-wide num-high]
+  ; get text to start with
+  (map
+    translate
+    (get-text-polys font
+                    font-info
+                    (add-event-brand
+                      (add-ahd-brand
+                        (get-rand-text-bg num-wide num-high)) num-wide))
+    ; center horizontally
+    (repeat (/ (- (q/width) 
+                  (+ (* (dec num-wide) (:h-spacing font-info)) 
+                     (:width font-info))) 
+               2))
+    ; center vertically
+    ;  taking into account that 
+    ;  the font is rendered with 
+    ;  the left baseline edge at 0,0
+    (repeat (+ (:height font-info)
+               (/ (- (q/height) 
+                     (+ (* (dec num-high) (:v-spacing font-info)) 
+                        (:height font-info))) 
+                  2)))))
+
+(defn incl-point-mirrors [points num-wide]
+  (reduce
+    (fn [out [x y]]
+      (conj out [x y] [(- num-wide x 1) y]))
+    (list)
+    points))
+
+(defn incl-point-rots [points num-wide num-high]
+  (reduce
+    (fn [out [x y]]
+      (conj out [x y] [(- num-wide x 1) (- num-high y 1)]))
+    (list)
+    points))
+
+(defn migrate-by-pos [source indices]
+  (let [dest (map #(nth source %)
+                  indices)]
+    [(map (fn [p i]
+            (if (some #(= i %)
+                      indices)
+              (geomerative.RPolygon.)
+              p))
+          source
+          (range))
+     dest]))
+
+(defn scale [poly sx sy cx cy]
+  (.scale poly sx sy cx cy)
+  poly)
+
+(defn build-font-cover [font font-info]
+  (let [num-wide (+ (int (/ (q/width) (:h-spacing font-info))) 2)
+        num-high (+ (int (/ (q/height) (:v-spacing font-info))) 1)
+        ;get characters to cover badge
+        all-chars (build-full-font-cover font font-info num-wide num-high)
+        ;get set of flipp-able (and rotatable) event characters
+        to-flip ;(incl-point-rots
+                  (incl-point-mirrors
+                    (take 3 (shuffle (for [x (range 1 (int (/ num-wide 2)))]
+                                       [x 5])))
+                    num-wide)
+                  ;num-wide
+                  ;num-high)
+        ;get set of rotatable ahd characters
+        to-rotate (incl-point-rots
+                    (take 4 (shuffle (for [x (range 1 5)
+                                           y (range 1 4)]
+                                       [x y])))
+                    num-wide
+                    num-high)
+        filtered-a (migrate-by-pos all-chars 
+                                   (map (fn [[x y]]
+                                          (+ (* y num-wide) x))
+                                        to-rotate))
+        filtered-b (migrate-by-pos (first filtered-a)
+                                   (map (fn [[x y]]
+                                          (+ (* y num-wide) x))
+                                        to-flip))
+        bg-chars (first filtered-b)]
+    [bg-chars
+     (map #(scale % -1 1 (/ (q/width) 2) (/ (q/height) 2))
+          (concat
+            (map #(scale % 1 -1 (/ (q/width) 2) (/ (q/height) 2))
+                 (second filtered-a))
+            (second filtered-b)))]))
+
 (defn get-event-poly [font]
   (let [polygon (.toPolygon (.toGroup font "Erasure"))]
     (.scale polygon 0.5)
@@ -221,6 +406,13 @@
                   (- (/ (- (q/width) (:width bounds)) 2) (:left bounds))
                   (/ (* (q/height) 9) 10))
       polygon)))
+
+(defn polygon [contours]
+  (reduce (fn [p c] 
+            (.addContour p c)
+            p)
+          (geomerative.RPolygon. (first contours))
+          (rest contours)))
 
 (defn geoify-name [font fullname]
   ; render first and last name

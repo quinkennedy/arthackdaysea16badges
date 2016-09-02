@@ -13,8 +13,11 @@
   (RCommand/setSegmentLength 1)
   (RCommand/setSegmentator RCommand/UNIFORMLENGTH)
   (let [font (RFont. "Colfax-WebMedium.ttf" util/font-size)
-        timestamp (util/get-timestamp)]
+        timestamp (util/get-timestamp)
+        ahd-font (RFont. "arthackday.ttf" (/ (q/width) 10))]
     {:font font
+     :ahd-font ahd-font
+     :ahd-font-info (util/measure-font ahd-font)
      :graphics (take (count util/colors)
                      (repeatedly #(q/create-graphics (q/width) (q/height) :p2d)))
      :altGraphic (q/create-graphics (q/width) (q/height) :p2d)
@@ -186,6 +189,8 @@
         voronoi (util/voronoi extra-points)
         regions (.getRegions voronoi)
         polygons (map util/region-to-polygon regions extra-points)
+        text (util/build-font-cover (:ahd-font state) (:ahd-font-info state))
+        ahd-font (RFont. "arthackday.ttf" (/ (q/width) 7))
         ; modulate polygons based on location
         grown-polygons (map
                          (fn [polygon center]
@@ -200,22 +205,34 @@
                          extra-points)]
     ; turn the other event poly upsidedown
     (.rotate event-poly-ud Math/PI (/ (q/width) 2) (/ (q/height) 2))
-    (let [layer2 (.intersection
-                   badge-rect
-                   (.intersection
-                     (.union
-                       name-poly
-                       (util/things-to-geom
-                         (take-nth 2 (rest grown-polygons))))
-                     event-poly-ud))]
+    (let [layer2 (util/union-all (second text))]
+                ; (.intersection
+                ;   badge-rect
+                ;   (.intersection
+                ;     (.union
+                ;       name-poly
+                ;       (util/things-to-geom
+                ;         (take-nth 2 (rest grown-polygons))))
+                ;     event-poly-ud))]
       (if (:upside-down state)
         (.rotate layer2 Math/PI (/ (q/width) 2) (/ (q/height) 2)))
+      (if (:flip-v state)
+        (.scale layer2 1 -1 (/ (q/width) 2) (/ (q/height) 2)))
+      (if (:flip-h state)
+        (.scale layer2 -1 1 (/ (q/width) 2) (/ (q/height) 2)))
       (merge state
              {:frame (inc (:frame state))
-              :polygons [(util/union-all
-                           (conj (vec (take-nth 2 split-badge)) name-poly))
-                         (util/union-all
-                           (conj (vec (take-nth 2 (rest split-badge))) name-poly))
+              :ahd-font ahd-font
+              :ahd-font-info (util/measure-font ahd-font)
+              :polygons [(util/union-all (first text))
+                         layer2
+                         ;(util/union-all (take-nth 2 (rest text)))
+
+                         ;(util/union-all
+                         ;  (conj (vec (take-nth 2 split-badge)) name-poly))
+                         ;(util/union-all
+                         ;  (conj (vec (take-nth 2 (rest split-badge))) name-poly))
+
                          ;(.intersection
                          ;  badge-rect
                          ;  (.intersection
@@ -225,7 +242,6 @@
                          ;        (take-nth 2 grown-polygons)))
                          ;    event-poly))
                          ;layer2
-                         (geomerative.RPolygon.)
                          ]
               }))))
 
@@ -237,6 +253,10 @@
               {:points (util/get-rand-radial-points)})
     :u (merge state
               {:upside-down (not (:upside-down state))})
+    :v (merge state
+              {:flip-v (not (:flip-v state))})
+    :h (merge state
+              {:flip-h (not (:flip-h state))})
     state))
 
 (defn draw-state [state]
