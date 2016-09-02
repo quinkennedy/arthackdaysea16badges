@@ -21,6 +21,47 @@
              [0 0 0]
              ])
 
+(defn split-poly [polys amount]
+  (let [split-point (+ (/ (- (q/width) (q/height)) 2) 
+                       (* (q/height) amount))
+        left (geomerative.RPolygon/createRectangle
+               (- (q/height))
+               (- (q/height))
+               (- split-point (- (q/height)))
+               (* (q/height) 3))
+        right (geomerative.RPolygon/createRectangle
+                split-point
+                (- (q/height))
+                (- (* (q/height) 2) split-point)
+                (* (q/height) 3))]
+    (filter #(not (nil? %))
+            (concat (map #(try
+                            (.intersection left %)
+                            (catch Exception e nil))
+                         polys)
+                    (map #(try
+                            (.intersection right %)
+                            (catch Exception e nil))
+                         polys)))))
+
+(defn split-times [poly n]
+  (if (zero? n)
+    [poly]
+    (let [step (/ (* Math/PI 2) n)
+          center [(/ (q/width) 2)
+                  (/ (q/height) 2)]]
+      (loop [i n
+             polys [poly]]
+        (if (zero? i)
+          polys
+          (recur (dec i)
+                 (split-poly
+                   (map (fn [poly]
+                          (.rotate poly step (first center) (second center))
+                          poly)
+                        polys)
+                   (q/random 0.3 0.7))))))))
+
 (defn voronoi [points] 
   (Voronoi. (into-array (map float-array points))))
 

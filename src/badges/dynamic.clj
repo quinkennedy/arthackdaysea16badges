@@ -179,6 +179,7 @@
         name-poly   (.toPolygon name-group)
         badge-rect  (geomerative.RPolygon/createRectangle
                       0 0 (q/width) (q/height))
+        split-badge (util/split-times badge-rect 7)
         event-poly  (.xor badge-rect (util/get-event-poly (:font state)))
         event-poly-ud (geomerative.RPolygon. event-poly)
         extra-points (concat (:points state) (util/rotate-points (:points state)))
@@ -211,16 +212,19 @@
         (.rotate layer2 Math/PI (/ (q/width) 2) (/ (q/height) 2)))
       (merge state
              {:frame (inc (:frame state))
-              :polygons [
-                         (.intersection
-                           badge-rect
-                           (.intersection
-                             (.union
-                               name-poly
-                               (util/things-to-geom
-                                 (take-nth 2 grown-polygons)))
-                             event-poly))
-                         layer2
+              :polygons [(util/union-all
+                           (conj (vec (take-nth 2 split-badge)) name-poly))
+                         (util/union-all
+                           (conj (vec (take-nth 2 (rest split-badge))) name-poly))
+                         ;(.intersection
+                         ;  badge-rect
+                         ;  (.intersection
+                         ;    (.union
+                         ;      name-poly
+                         ;      (util/things-to-geom
+                         ;        (take-nth 2 grown-polygons)))
+                         ;    event-poly))
+                         ;layer2
                          (geomerative.RPolygon.)
                          ]
               }))))
