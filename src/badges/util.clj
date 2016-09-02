@@ -300,7 +300,19 @@
                                  (repeat \ )))))))
 
 (defn add-event-brand [text num-wide]
-  (let [branding [""""""""""(str \  (get-rand-string "ERASURE" (- num-wide 2)) \ )]]
+  (let [brand-string "ERASURE"
+        brand-text (get-rand-string brand-string (+ (count brand-string) 1))
+        branding [""""""""
+                  (apply str (concat (repeat
+                                       (- num-wide
+                                          (inc (/ (count brand-text) 2)))
+                                       \ )
+                                     (take (/ (count brand-text) 2) brand-text)))
+                  (apply str (concat (repeat 
+                                       (- num-wide
+                                          (inc (/ (count brand-text) 2)))
+                                       \ )
+                                     (drop (/ (count brand-text) 2) brand-text)))]]
     (map merge-text
          text
          (concat branding (repeat "")))))
@@ -379,8 +391,9 @@
         ;get set of flipp-able (and rotatable) event characters
         to-flip ;(incl-point-rots
                   (incl-point-mirrors
-                    (take 3 (shuffle (for [x (range 1 (int (/ num-wide 2)))]
-                                       [x 5])))
+                    (take 4 (shuffle (for [x (range 8 (dec num-wide))
+                                           y (range 4 6)]
+                                       [x y])))
                     num-wide)
                   ;num-wide
                   ;num-high)
