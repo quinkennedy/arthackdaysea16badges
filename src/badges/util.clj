@@ -20,6 +20,12 @@
              [0 0 0]
              ])
 
+(defn intersect? [bound1 bound2]
+  (and (and (> (:right bound1) (:left bound2))
+            (> (:right bound2) (:left bound1)))
+       (and (> (:bottom bound1) (:top bound2))
+            (> (:bottom bound2) (:top bound1)))))
+
 (defn split-poly [polys amount]
   (let [split-point (+ (/ (- (q/width) (q/height)) 2) 
                        (* (q/height) amount))
@@ -358,11 +364,14 @@
           (range))
      dest]))
 
-(defn scale [poly sx sy cx cy]
-  (.scale poly sx sy cx cy)
-  poly)
+(defn scale 
+  ([poly s]
+    (.scale poly s))
+  ([poly sx sy cx cy]
+    (.scale poly sx sy cx cy)
+    poly))
 
-(defn build-font-cover [font font-info]
+(defn build-font-cover [font font-info avoid-bounds]
   (let [num-wide (+ (int (/ (q/width) (:h-spacing font-info))) 2)
         num-high (+ (int (/ (q/height) (:v-spacing font-info))) 1)
         ;get characters to cover badge
@@ -390,7 +399,21 @@
                                    (map (fn [[x y]]
                                           (+ (* y num-wide) x))
                                         to-flip))
-        bg-chars (first filtered-b)]
+        bg-chars (filter (fn [chr]
+                            (not
+                              (let [bounds (getBounds (.getPoints chr))]
+                                (reduce 
+                                  #(or %1 %2)
+                                  (map
+                                    #(intersect?
+                                       (merge bounds
+                                              {})
+                                              ;{:top (- (:bottom bounds) (:height font-info))
+                                              ; :right (+ (:left bounds) (:width font-info))})
+                                       %)
+                                    avoid-bounds)))))
+                         (filter #(not (zero? (.countContours %)))
+                                 (first filtered-b)))]
     [bg-chars
      (map #(scale % -1 1 (/ (q/width) 2) (/ (q/height) 2))
           (concat
@@ -416,26 +439,28 @@
 
 (defn geoify-name [font fullname]
   ; render first and last name
-  (let [group (.toGroup font (first fullname))
-        group2 (.toGroup font (second fullname))]
-    ; add last name under first name
-    (.translate group2 0 font-size)
-    (.addGroup group group2)
-    (let [bounds (getBounds (.getPoints group))]
+  (let [groups [(.toPolygon (.toGroup font (first fullname)))
+                ; put last name under first name
+                (translate (.toPolygon (.toGroup font (second fullname))) 0 font-size)]]
+    (let [bounds (map #(getBounds (.getPoints %))
+                      groups)
+          scale-amt (min 1 
+                      (/ (- (q/width) 
+                            (* dpi (* 0.3 2))) 
+                         (reduce max
+                                 (map #(:width %) 
+                                      bounds))))]
       ; scale name to fit horizontally
-      (.scale group 
-              (min 1 
-                   (/ (- (q/width) 
-                         (* dpi (* 0.3 2))) 
-                      (:width bounds))))
-      (let [bounds2 (getBounds (.getPoints group))]
-        ; align bottom of name with middle of badge
-        (.translate group 
-                    (- (* dpi 0.3) (:left bounds2)) 
-                    (- (- (/ (q/height) 2)
-                          (:bottom bounds2))
-                       (* dpi 0.3)))
-        group))))
+      (doall
+        (map #(scale % scale-amt) groups))
+      (let [bounds2 (getBounds (.getPoints (union-all groups)))]
+        ; align top of name with middle of badge
+        (map #(translate %
+                         (- (* dpi 0.3) (:left bounds2)) 
+                         (- (- (/ (q/height) 2)
+                               (:top bounds2))
+                            (* dpi 0.3)))
+             groups)))))
 
 (defn draw-it [graphics polygon color]
   (q/with-graphics 

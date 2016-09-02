@@ -178,8 +178,7 @@
                         (inc j)))))))))
 
 (defn update-state [state]
-  (let [name-group  (util/geoify-name (:font state) util/fullname)
-        name-poly   (.toPolygon name-group)
+  (let [name-polys  (util/geoify-name (:font state) util/fullname)
         badge-rect  (geomerative.RPolygon/createRectangle
                       0 0 (q/width) (q/height))
         split-badge (util/split-times badge-rect 7)
@@ -189,8 +188,12 @@
         voronoi (util/voronoi extra-points)
         regions (.getRegions voronoi)
         polygons (map util/region-to-polygon regions extra-points)
-        text (util/build-font-cover (:ahd-font state) (:ahd-font-info state))
-        ahd-font (RFont. "arthackday.ttf" (/ (q/width) 7))
+        text (util/build-font-cover 
+               (:ahd-font state) 
+               (:ahd-font-info state)
+               (map #(util/getBounds (.getPoints %))
+                    name-polys))
+        ahd-font (RFont. "arthackday.ttf" (/ (q/width) 8))
         ; modulate polygons based on location
         grown-polygons (map
                          (fn [polygon center]
@@ -224,9 +227,8 @@
              {:frame (inc (:frame state))
               :ahd-font ahd-font
               :ahd-font-info (util/measure-font ahd-font)
-              :polygons [(util/union-all (first text))
+              :polygons [(util/union-all (concat (first text) name-polys))
                          layer2
-                         ;(util/union-all (take-nth 2 (rest text)))
 
                          ;(util/union-all
                          ;  (conj (vec (take-nth 2 split-badge)) name-poly))
