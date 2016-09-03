@@ -179,7 +179,7 @@
         name-poly   (.toPolygon name-group)
         badge-rect  (geomerative.RPolygon/createRectangle
                       0 0 (q/width) (q/height))
-        split-badge (util/split-times badge-rect 7)
+        triangles (:triangles state)
         event-poly  (.xor badge-rect (util/get-event-poly (:font state)))
         event-poly-ud (geomerative.RPolygon. event-poly)
         extra-points (concat (:points state) (util/rotate-points (:points state)))
@@ -212,10 +212,14 @@
         (.rotate layer2 Math/PI (/ (q/width) 2) (/ (q/height) 2)))
       (merge state
              {:frame (inc (:frame state))
-              :polygons [(util/union-all
-                           (conj (vec (take-nth 2 split-badge)) name-poly))
-                         (util/union-all
-                           (conj (vec (take-nth 2 (rest split-badge))) name-poly))
+              :polygons [(.intersection
+                           name-poly
+                           (util/union-all
+                             (first triangles)))
+                         (.intersection
+                           name-poly
+                           (util/union-all
+                             (second triangles)))
                          ;(.intersection
                          ;  badge-rect
                          ;  (.intersection
@@ -237,6 +241,13 @@
               {:points (util/get-rand-radial-points)})
     :u (merge state
               {:upside-down (not (:upside-down state))})
+    :t (let [badge-rect  (geomerative.RPolygon/createRectangle
+                           0 0 (q/width) (q/height))
+             split-badge (util/split-times badge-rect 7)
+             triangles [(take-nth 2 split-badge) 
+                        (take-nth 2 (rest split-badge))]]
+         (merge state
+                {:triangles triangles}))
     state))
 
 (defn draw-state [state]
@@ -262,11 +273,26 @@
                            extra-points)]
       ;draw to off-screen buffers
       (dorun
-        (for [i (range (count (:graphics state)))]
-          (util/draw-it
-            (nth (:graphics state) i)
-            (nth (:polygons state) i)
-            (util/get-color i))))
+        (for [graphics (:graphics state)]
+          (q/with-graphics
+            graphics
+            (q/clear))))
+      (dorun
+        (for [i (range (count util/colors))]
+          (do
+            (util/draw-it
+              (nth (:graphics state) i)
+              (nth (:polygons state) i)
+              (nth util/colors i))
+            (q/with-graphics
+              (nth (:graphics state) i)
+              (q/no-fill)
+              (q/stroke-weight 3)
+              (q/with-stroke (nth util/colors i)
+                (dorun
+                  (for [triangle (nth (:triangles state) i)]
+                    (.draw triangle (nth (:graphics state) i)))))))))
+            
       ;(util/draw-polygons
       ;  (first (:graphics state))
       ;  (util/get-color 0)
@@ -276,7 +302,7 @@
       ;  (util/get-color 1)
       ;  (take-nth 2 (rest grown-polygons)))
       ;combine buffers on-screen
-      (q/blend-mode :subtract)
+      (q/blend-mode :blend)
       (dorun
         (for [graphic (:graphics state)]
           (q/image graphic 0 0)))

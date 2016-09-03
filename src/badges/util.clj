@@ -16,10 +16,12 @@
 (def pdf-size [11 8.5])
 (def font-size 100)
 (def fullname '("Quin" "Kennedy"))
-(def colors [[255 93 48]
-             [1 163 160]
+(def colors [[0 0 0]
              [0 0 0]
              ])
+;(def colors [[251 179 154]
+;             [140 169 255]
+;             ])
 
 (defn split-poly [polys amount]
   (let [split-point (+ (/ (- (q/width) (q/height)) 2) 
@@ -260,11 +262,11 @@
 (defn save [state]
   (let [timestamp (get-timestamp)]
     (dorun
-      (for [i (range (count (:polygons state)))]
-        (RG/saveShape (format "output/%s_layer%d.svg" 
-                              timestamp
-                              i)
-                    (.toShape (nth (:polygons state) i)))))
+      (for [i (range (count colors))]
+        (.save (nth (:graphics state) i)
+          (format "output/%s_layer%d.png" 
+                  timestamp
+                  i))))
     ;;
     ;; Print out individual contours of Polygon
     ;;
