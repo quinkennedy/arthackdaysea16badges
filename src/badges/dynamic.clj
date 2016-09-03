@@ -181,6 +181,8 @@
   (let [name-polys  (util/geoify-name (:font state) util/fullname)
         badge-rect  (geomerative.RPolygon/createRectangle
                       0 0 (q/width) (q/height))
+        cubes (util/union-all (util/gen-cubes (:ahd-font state) (:ahd-font-info state)))
+        inv-cubes (.xor badge-rect cubes)
         split-badge (util/split-times badge-rect 7)
         event-poly  (.xor badge-rect (util/get-event-poly (:font state)))
         event-poly-ud (geomerative.RPolygon. event-poly)
@@ -208,7 +210,7 @@
                          extra-points)]
     ; turn the other event poly upsidedown
     (.rotate event-poly-ud Math/PI (/ (q/width) 2) (/ (q/height) 2))
-    (let [layer2 (util/union-all (second text))]
+    (let [layer2 (util/union-all (conj (second text) (.intersection cubes (util/union-all name-polys))))]
                 ; (.intersection
                 ;   badge-rect
                 ;   (.intersection
@@ -227,7 +229,7 @@
              {:frame (inc (:frame state))
               :ahd-font ahd-font
               :ahd-font-info (util/measure-font ahd-font)
-              :polygons [(util/union-all (concat (first text) name-polys))
+              :polygons [(util/union-all (conj (first text) (.intersection inv-cubes (util/union-all name-polys))))
                          layer2
 
                          ;(util/union-all

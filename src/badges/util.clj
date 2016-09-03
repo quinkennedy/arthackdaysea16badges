@@ -265,6 +265,12 @@
                     \u00AC))
                 (range num-wide)))))
 
+(defn get-text-bg [num-wide num-high]
+  (for [y (range num-high)]
+    (apply str
+           (for [x (range num-wide)]
+             \u00AC))))
+
 (defn merge-text [text other]
   (apply str 
          (map (fn [a b]
@@ -326,29 +332,35 @@
       (/ (q/height) 2))
     char-polys))
 
+(defn center-full-text [text-polys font-info num-wide num-high]
+  (map translate
+       text-polys
+       ; center horizontally
+       (repeat (/ (- (q/width) 
+                     (+ (* (dec num-wide) (:h-spacing font-info)) 
+                        (:width font-info))) 
+                  2))
+       ; center vertically
+       ;  taking into account that 
+       ;  the font is rendered with 
+       ;  the left baseline edge at 0,0
+       (repeat (+ (:height font-info)
+                  (/ (- (q/height) 
+                        (+ (* (dec num-high) (:v-spacing font-info)) 
+                           (:height font-info))) 
+                     2)))))
+
+
 (defn build-full-font-cover [font font-info num-wide num-high]
-  ; get text to start with
-  (map
-    translate
+  (center-full-text
     (get-text-polys font
                     font-info
                     (add-event-brand
                       (add-ahd-brand
                         (get-rand-text-bg num-wide num-high)) num-wide))
-    ; center horizontally
-    (repeat (/ (- (q/width) 
-                  (+ (* (dec num-wide) (:h-spacing font-info)) 
-                     (:width font-info))) 
-               2))
-    ; center vertically
-    ;  taking into account that 
-    ;  the font is rendered with 
-    ;  the left baseline edge at 0,0
-    (repeat (+ (:height font-info)
-               (/ (- (q/height) 
-                     (+ (* (dec num-high) (:v-spacing font-info)) 
-                        (:height font-info))) 
-                  2)))))
+    font-info
+    num-wide
+    num-high))
 
 (defn incl-point-mirrors [points num-wide]
   (reduce
@@ -382,6 +394,17 @@
   ([poly sx sy cx cy]
     (.scale poly sx sy cx cy)
     poly))
+
+(defn gen-cubes [font font-info]
+  (let [num-wide (+ (int (/ (q/width) (:h-spacing font-info))) 2)
+        num-high (+ (int (/ (q/height) (:v-spacing font-info))) 1)]
+    (center-full-text
+      (get-text-polys font
+                      font-info
+                      (get-text-bg num-wide num-high))
+      font-info
+      num-wide
+      num-high)))
 
 (defn build-font-cover [font font-info avoid-bounds]
   (let [num-wide (+ (int (/ (q/width) (:h-spacing font-info))) 2)
