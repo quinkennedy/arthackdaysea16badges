@@ -180,7 +180,7 @@
         badge-rect  (geomerative.RPolygon/createRectangle
                       0 0 (q/width) (q/height))
         triangles (:triangles state)
-        event-poly  (.xor badge-rect (util/get-event-poly (:font state)))
+        event-poly  (.intersection badge-rect (util/get-event-poly (:font state)))
         event-poly-ud (geomerative.RPolygon. event-poly)
         extra-points (concat (:points state) (util/rotate-points (:points state)))
         voronoi (util/voronoi extra-points)
@@ -200,26 +200,43 @@
                          extra-points)]
     ; turn the other event poly upsidedown
     (.rotate event-poly-ud Math/PI (/ (q/width) 2) (/ (q/height) 2))
-    (let [layer2 (.intersection
-                   badge-rect
-                   (.intersection
-                     (.union
-                       name-poly
-                       (util/things-to-geom
-                         (take-nth 2 (rest grown-polygons))))
-                     event-poly-ud))]
+    (let [layer2 
+          (.union
+            (.intersection
+              event-poly-ud
+              (util/union-all
+                (second triangles)))
+                         (.intersection
+                           name-poly
+                           (util/union-all
+                             (second triangles))))]
+          ;(.intersection
+          ;         badge-rect
+          ;         (.intersection
+          ;           (.union
+          ;             name-poly
+          ;             (util/things-to-geom
+          ;               (take-nth 2 (rest grown-polygons))))
+          ;           event-poly-ud))]
       (if (:upside-down state)
         (.rotate layer2 Math/PI (/ (q/width) 2) (/ (q/height) 2)))
       (merge state
              {:frame (inc (:frame state))
-              :polygons [(.intersection
-                           name-poly
-                           (util/union-all
-                             (first triangles)))
+              :polygons [(.union
+                           (.intersection
+                             event-poly
+                             (util/union-all
+                               (first triangles)))
                          (.intersection
                            name-poly
                            (util/union-all
-                             (second triangles)))
+                             (first triangles))))
+                         layer2
+                         ;(.intersection
+                         ;  name-poly
+                         ;  (util/union-all
+                         ;    (second triangles)))
+
                          ;(.intersection
                          ;  badge-rect
                          ;  (.intersection

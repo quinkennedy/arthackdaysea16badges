@@ -56,13 +56,16 @@
              polys [poly]]
         (if (zero? i)
           polys
-          (recur (dec i)
-                 (split-poly
-                   (map (fn [poly]
-                          (.rotate poly step (first center) (second center))
-                          poly)
-                        polys)
-                   (q/random 0.3 0.7))))))))
+          (let [pt (q/random 0.3 0.7)]
+            (recur (dec i)
+                   (split-poly
+                     (split-poly
+                       (map (fn [poly]
+                              (.rotate poly step (first center) (second center))
+                              poly)
+                            polys)
+                       pt)
+                     (- 1 pt)))))))))
 
 (defn voronoi [points] 
   (Voronoi. (into-array (map float-array points))))
@@ -239,11 +242,11 @@
                          (* dpi (* 0.3 2))) 
                       (:width bounds))))
       (let [bounds2 (getBounds (.getPoints group))]
-        ; align bottom of name with middle of badge
+        ; align center of name with middle of badge
         (.translate group 
                     (- (* dpi 0.3) (:left bounds2)) 
                     (- (- (/ (q/height) 2)
-                          (:bottom bounds2))
+                          (/ (+ (:top bounds2) (:bottom bounds2)) 2))
                        (* dpi 0.3)))
         group))))
 
