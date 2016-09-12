@@ -30,8 +30,8 @@
                      (/ x-step 2) 
                      2)))]
     (for [x (range num-wide)
-          y (range (* (/ num-wide (q/width)) (q/height)))]
-      [(* (* x x-step) (if (even? y) (/ x-step 2) 0))
+          y (range (inc (* (/ (* (/ num-wide y-step) x-step) (q/width)) (q/height))))]
+      [(+ (* x x-step) (if (even? y) (/ x-step 2) 0))
        (* y y-step)])))
 
 (defn get-circle-pattern [num-wide]

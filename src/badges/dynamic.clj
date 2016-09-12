@@ -8,7 +8,7 @@
             [badges.util :as util]))
 
 (defn setup []
-  (q/frame-rate 15)
+  (q/frame-rate 5)
   (RG/init (quil.applet/current-applet))
   (RCommand/setSegmentLength 1)
   (RCommand/setSegmentator RCommand/UNIFORMLENGTH)
