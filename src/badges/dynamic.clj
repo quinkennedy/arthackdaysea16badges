@@ -12,20 +12,29 @@
   (RG/init (quil.applet/current-applet))
   (RCommand/setSegmentLength 1)
   (RCommand/setSegmentator RCommand/UNIFORMLENGTH)
-  (let [font (RFont. "Colfax-WebMedium.ttf" util/font-size)
-        timestamp (util/get-timestamp)]
-    {:font font
-     :graphics (take (count util/colors)
-                     (repeatedly #(q/create-graphics (q/width) (q/height) :p2d)))
+  (let [font      (RFont. "Colfax-WebMedium.ttf" util/font-size)
+        timestamp (util/get-timestamp)
+        patterns  (take 2 (repeatedly #(q/create-graphics 
+                                         (q/width) 
+                                         (q/height) 
+                                         :p2d)))]
+    (util/apply-dots (first patterns))
+    (util/apply-lines (second patterns))
+    {:font       font
+     :graphics   (take (count util/colors)
+                     (repeatedly 
+                       #(q/create-graphics (q/width) (q/height) :p2d)))
+     :patterns   patterns
      :altGraphic (q/create-graphics (q/width) (q/height) :p2d)
-     :timestamp timestamp
-     :pdf (q/create-graphics (* util/pdf-dpi (first util/pdf-size))
-                             (* util/pdf-dpi (second util/pdf-size))
-                             :pdf
-                             (format "pdf/%s_print.pdf" timestamp))
+     :timestamp  timestamp
+     :pdf        (q/create-graphics 
+                   (* util/pdf-dpi (first util/pdf-size))
+                   (* util/pdf-dpi (second util/pdf-size))
+                   :pdf
+                   (format "pdf/%s_print.pdf" timestamp))
      ; alternatively (q/frame-count)
-     :frame 0
-     :points (util/get-rand-radial-points)}))
+     :frame      0
+     :points     (util/get-rand-radial-points)}))
 
 (defn get-block-polys [group]
   (let [raw-bounds  (util/getBounds (.getPoints group))
@@ -121,33 +130,6 @@
     (.translate clone x y)
     clone))
 
-(defn get-circle-pattern []
-  (let [num-wide  15
-        step-size (/ (q/width) num-wide)
-        y-step    (Math/sqrt 
-                    (-
-                      (* step-size step-size)
-                      (Math/pow 
-                        (/ step-size 2) 
-                        2)))]
-    (loop [badge (geomerative.RPolygon.)
-           x     0
-           y     0
-           even  false]
-      (if (> y (+ (q/height) step-size))
-        badge
-        (let [next-badge (.union badge
-                                 (geomerative.RPolygon/createCircle
-                                   (+ x 
-                                      (if even 
-                                        (/ step-size 2)
-                                        0))
-                                   y
-                                   (/ (* 2 step-size) 5)))]
-          (if (> x (q/width))
-            (recur next-badge 0 (+ y y-step) (not even))
-            (recur next-badge (+ x step-size) y even)))))))
-
 (defn get-offset-polys [group font num-colors]
   (let [line-width (:width (util/getBounds (.getPoints (.toGroup font "i"))))
         poly (.toPolygon group)
@@ -196,7 +178,13 @@
                                      0.5) 
                                   20))))
                          polygons
-                         extra-points)]
+                         extra-points)
+        patterns  (take 2 (repeatedly #(q/create-graphics 
+                                         (q/width) 
+                                         (q/height) 
+                                         :p2d)))]
+    (util/apply-dots (first patterns))
+    (util/apply-lines (second patterns))
     ; turn the other event poly upsidedown
     (.rotate event-poly-ud Math/PI (/ (q/width) 2) (/ (q/height) 2))
     (let [layer2 (.intersection
@@ -223,6 +211,7 @@
                          layer2
                          (geomerative.RPolygon.)
                          ]
+              :patterns patterns
               }))))
 
 (defn key-typed [state event]
@@ -262,7 +251,8 @@
           (util/draw-it
             (nth (:graphics state) i)
             (nth (:polygons state) i)
-            (util/get-color i))))
+            [255 255 255])))
+            ;(util/get-color i))))
       ;(util/draw-polygons
       ;  (first (:graphics state))
       ;  (util/get-color 0)
@@ -274,7 +264,26 @@
       ;combine buffers on-screen
       (q/blend-mode :subtract)
       (dorun
-        (for [graphic (:graphics state)]
-          (q/image graphic 0 0)))
+        (for [i (range (count (:patterns state)))]
+          ;(do
+          ;  (q/with-graphics
+          ;    (:altGraphic state)
+          ;    (q/clear)
+          ;    (q/blend-mode :blend)
+          ;    (q/image (nth (:patterns state) 1) 0 0)
+          ;    (q/blend-mode :subtract)
+          ;    (q/image (nth (:graphics state) 1) 0 0))
+          ;  ;(q/image (nth (:graphics state) i) 0 0))))
+          ;  (q/blend-mode :blend)
+          ;  (q/image (:altGraphic state) 0 0))))
+          ;(q/image (nth (:graphics state) i) 0 0)))
+          ;(q/image (nth (:patterns state) i) 0 0)))
+          (let [img (.copy (nth (:patterns state) i))]
+          (do
+            (q/mask-image
+              img
+              ;(.copy (nth (:patterns state) i))
+              (.copy (nth (:graphics state) i)))
+            (q/image img 0 0)))))
       (when (= (:frame state) 1)
         (util/save state)))))

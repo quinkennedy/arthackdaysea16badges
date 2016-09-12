@@ -21,6 +21,68 @@
              [0 0 0]
              ])
 
+(defn get-honeycomb-centers [num-wide]
+  (let [x-step (/ (q/width) num-wide)
+        y-step (Math/sqrt
+                 (-
+                   (* x-step x-step)
+                   (Math/pow 
+                     (/ x-step 2) 
+                     2)))]
+    (for [x (range num-wide)
+          y (range (* (/ num-wide (q/width)) (q/height)))]
+      [(* (* x x-step) (if (even? y) (/ x-step 2) 0))
+       (* y y-step)])))
+
+(defn get-circle-pattern [num-wide]
+  (let [
+        step-size (/ (q/width) num-wide)
+        y-step    (Math/sqrt 
+                    (-
+                      (* step-size step-size)
+                      (Math/pow 
+                        (/ step-size 2) 
+                        2)))]
+    (loop [badge (geomerative.RPolygon.)
+           x     0
+           y     0
+           even  false]
+      (if (> y (+ (q/height) step-size))
+        badge
+        (let [next-badge (.union badge
+                                 (geomerative.RPolygon/createCircle
+                                   (+ x 
+                                      (if even 
+                                        (/ step-size 2)
+                                        0))
+                                   y
+                                   (/ (* 2 step-size) 5)))]
+          (if (> x (q/width))
+            (recur next-badge 0 (+ y y-step) (not even))
+            (recur next-badge (+ x step-size) y even)))))))
+
+(defn apply-dots [graphics]
+  (let [centers (get-honeycomb-centers 100)]
+    (q/with-graphics
+      graphics
+      ;(q/no-stroke)
+      (q/with-fill [0]
+        (doall
+          (for [center centers]
+            (q/ellipse
+              (first center)
+              (second center)
+              2 2)))))))
+
+(defn apply-lines [graphics]
+  (q/with-graphics
+    graphics
+    (q/stroke 0)
+    ;(q/stroke-weight 2)
+    (dorun
+      (for [i (filter even? (range (q/width)))]
+        (q/line i 0 i (q/height))))))
+
 (defn voronoi [points] 
   (Voronoi. (into-array (map float-array points))))
 
@@ -208,6 +270,8 @@
   (q/with-graphics 
     graphics
     (q/clear)
+    ;(q/background 0)
+    ;(q/background 255)
     ;(q/background 255 255 255 0)
     (q/no-stroke)
     (q/with-fill color
