@@ -10,19 +10,24 @@
             [thi.ng.geom.polygon :as gp]
             ))
 
-(def dpi 138)
-(def inch_size [3 4.5])
+(def print-dpi 138);600)
+(def screen-dpi 138)
+(def finish_size [3 4.5])
+(def bleed 0.25)
+(def margin 0.2)
+(def safety (+ bleed margin))
+(def inch_size (mapv + finish_size (repeat (* bleed 2))))
+(def print-px (mapv * inch_size (repeat print-dpi)))
 (def pdf-dpi 72)
-(def pdf-size [11 8.5])
+(def pdf-size [8.5 11])
 (def font-size 100)
 (def fullname '("Quin" "Kennedy"))
 (def colors [[255 93 48]
              [1 163 160]
-             [0 0 0]
              ])
 
-(defn get-honeycomb-centers [num-wide]
-  (let [x-step (/ (q/width) num-wide)
+(defn get-honeycomb-centers [num-wide width height]
+  (let [x-step (/ width num-wide)
         y-step (Math/sqrt
                  (-
                    (* x-step x-step)
@@ -30,7 +35,7 @@
                      (/ x-step 2) 
                      2)))]
     (for [x (range num-wide)
-          y (range (inc (* (/ (* (/ num-wide y-step) x-step) (q/width)) (q/height))))]
+          y (range (inc (* (/ (* (/ num-wide y-step) x-step) width) height)))]
       [(+ (* x x-step) (if (even? y) (/ x-step 2) 0))
        (* y y-step)])))
 
@@ -62,10 +67,14 @@
             (recur next-badge (+ x step-size) y even)))))))
 
 (defn apply-dots [graphics inv]
-  (let [centers (get-honeycomb-centers 100)]
+  (let [num-wide 100
+        width (.-width graphics)
+        height (.-height graphics)
+        centers (get-honeycomb-centers num-wide width height)
+        diameter (/ width num-wide 2)]
     (q/with-graphics
       graphics
-      ;(q/clear)
+      (q/clear)
       (if inv
         (q/background 0)
         (q/background 255 0))
@@ -77,18 +86,24 @@
             (q/ellipse
               (first center)
               (second center)
-              2 2))))))))
+              diameter diameter))))))))
 
 (defn apply-lines [graphics]
-  (q/with-graphics
-    graphics
-    ;(q/clear)
-    (q/background 255 0)
-    (q/stroke 0)
-    ;(q/stroke-weight 2)
-    (dorun
-      (for [i (filter even? (range (q/width)))]
-        (q/line i 0 i (q/height))))))
+    (q/with-graphics
+      graphics
+      (let [num-wide 120
+            width (.-width graphics)
+            height (.-height graphics)
+            step (int (/ width num-wide))
+            weight (/ step 2)
+            offset (int (- (/ width 2)))]
+        (q/clear)
+        (q/background 255 0)
+        (q/stroke 0)
+        (q/stroke-weight weight)
+        (dorun
+          (for [i (take-nth step (range (+ width (Math/abs offset))))]
+            (q/line i 0 (+ i offset) height))))))
 
 (defn voronoi [points] 
   (Voronoi. (into-array (map float-array points))))
@@ -153,21 +168,21 @@
                    [(q/random (q/width)) 
                     (q/random (q/height))])))))
 
-(defn get-rand-radial-points []
+(defn get-rand-radial-points [width height]
   (loop [i 0
          points []]
     (if (= i 12)
       points
       (let [point (map + 
                        (polar-to-cartesian 
-                         (q/random (/ (q/height) 2))
+                         (q/random (/ height 2))
                          (q/random (* Math/PI 2)))
-                       [(/ (q/width) 2) 
-                        (/ (q/height) 2)])]
+                       [(/ width 2) 
+                        (/ height 2)])]
         (if (and (and (> (first point) 0) 
-                      (> (q/width) (first point)))
+                      (> width (first point)))
                  (and (> (second point) 0)
-                      (> (q/height) (second point))))
+                      (> height (second point))))
           (recur (inc i)
                  (conj points point))
           (recur i points))))))
@@ -177,8 +192,8 @@
     (mapv (fn [[x y]] [(+ half-width (- half-width x)) y])
           points)))
 
-(defn rotate-points [points]
-  (let [center [(/ (q/width) 2) (/ (q/height) 2)]]
+(defn rotate-points [points width height]
+  (let [center [(/ width 2) (/ height 2)]]
     (mapv #(let [polar (cartesian-to-polar (mapv - % center))]
              (mapv + 
                    (polar-to-cartesian 
@@ -257,7 +272,7 @@
                   ;(/ (* (q/height) 9) 10))
       full-poly)))
 
-(defn get-event-poly [font]
+(defn get-event-poly [font width height side-space dpi]
   (let [text "ERASURE"
         order (shuffle (take 10 (concat (repeat (count text) true) (repeat false))))
         us-text (apply str 
@@ -273,22 +288,21 @@
         bounds (getBounds (.getPoints polygon))]
     ; scale name to fit horizontally
     (.scale polygon
-            (min 1 
-                 (/ (- (q/width) 
-                       (* dpi (* 0 2))) 
-                    (:width bounds))))
+            (/ (- width (* side-space dpi 2))
+               (:width bounds)))
     (let [bounds2 (getBounds (.getPoints polygon))]
       ; align top of name with top of badge
       (.translate polygon
-                  (- (* dpi 0) (:left bounds2)) 
+                  (+ (/ (- width (:width bounds2)) 2)
+                     (- (:left bounds2)))
                   (+ (- (:top bounds2))
-                     (/ (q/height) 2)))
+                     (/ height 2)))
                   ;(+ (- (/ (q/height) 2)
                   ;      (:top bounds2))
                   ;   (* dpi 0.3)))
       polygon)))
 
-(defn geoify-name [font fullname]
+(defn geoify-name [font fullname width height side-padding top-padding dpi]
   ; render first and last name
   (let [group (.toGroup font (first fullname))
         group2 (.toGroup font (second fullname))]
@@ -298,16 +312,16 @@
     (let [bounds (getBounds (.getPoints group))]
       ; scale name to fit horizontally
       (.scale group 
-              (min 1 
-                   (/ (- (q/width) 
-                         (* dpi (* 0.2 2))) 
+              (min (/ print-dpi screen-dpi) 
+                   (/ (- width 
+                         (* dpi side-padding 2))
                       (:width bounds))))
       (let [bounds2 (getBounds (.getPoints group))]
         ; align top of name with top of badge
         (.translate group 
-                    (- (* dpi 0.2) (:left bounds2)) 
+                    (- (* dpi side-padding) (:left bounds2)) 
                     (+ (- (:top bounds2))
-                       (* dpi (+ 0.23 0.28 0.1))))
+                       (* dpi (+ top-padding 0.23 0.28 0.1))))
                     ;(+ (- (/ (q/height) 2)
                     ;      (:top bounds2))
                     ;   (* dpi 0.3)))
@@ -329,12 +343,13 @@
 
 (defn save [state]
   (let [timestamp (get-timestamp)]
-    (dorun
-      (for [i (range (count (:polygons state)))]
-        (RG/saveShape (format "output/%s_layer%d.svg" 
-                              timestamp
-                              i)
-                    (.toShape (nth (:polygons state) i)))))
+    ;(dorun
+    ;  (for [i (range (count (:polygons state)))]
+    ;    (RG/saveShape (format "output/%s_layer%d.svg" 
+    ;                          timestamp
+    ;                          i)
+    ;                (.toShape (nth (:polygons state) i)))))
+
     ;;
     ;; Print out individual contours of Polygon
     ;;
@@ -348,7 +363,19 @@
     ;                            (.isHole contour))
     ;                    (.toShape (.toPolygon contour)))))))
     (q/save (format "output/%s_render" 
-                    timestamp))))
+                    timestamp))
+    ;(doall
+    ;  (for [i (range (count (:patterns state)))]
+    ;    (.save (nth (:patterns state) i)
+    ;           (format "output/%s_pattern_%d"
+    ;                   timestamp
+    ;                   i))))
+    (doall
+      (for [i (range (count (:graphics state)))]
+        (.save (nth (:graphics state) i)
+               (format "output/%s_graphic_%d"
+                       timestamp
+                       i))))))
 ;  ;;
 ;  ;; Render to PDF to match screen colors
 ;  ;;

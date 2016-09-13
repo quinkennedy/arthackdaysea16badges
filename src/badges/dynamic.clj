@@ -8,7 +8,7 @@
             [badges.util :as util]))
 
 (defn setup []
-  (q/frame-rate 5)
+  (q/frame-rate 1)
   (RG/init (quil.applet/current-applet))
   (RCommand/setSegmentLength 1)
   (RCommand/setSegmentator RCommand/UNIFORMLENGTH)
@@ -17,11 +17,10 @@
         ahd-font  (q/create-font "arthackday.ttf" util/font-size)
         timestamp (util/get-timestamp)
         badge-rect  (geomerative.RPolygon/createRectangle
-                      0 0 (q/width) (q/height))
-        patterns  (take 2 (repeatedly #(q/create-graphics 
-                                         (q/width) 
-                                         (q/height) 
-                                         :p2d)))]
+                      0 0 (first util/print-px) (second util/print-px))
+        patterns  (take 2 (repeatedly #(apply
+                                         q/create-graphics 
+                                         (conj util/print-px :p2d))))]
     (util/apply-dots (first patterns) false)
     ;(util/apply-dots (second patterns) true)
     (util/apply-lines (second patterns))
@@ -29,110 +28,27 @@
      :ahd-geo-font ahd-geo-font
      :ahd-font   ahd-font
      :graphics   (take (count util/colors)
-                     (repeatedly 
-                       #(q/create-graphics (q/width) (q/height) :p2d)))
+                       (repeatedly 
+                         #(apply q/create-graphics (conj util/print-px :p2d))))
      :patterns   patterns
-     :altGraphic (q/create-graphics (q/width) (q/height) :p2d)
+     :altGraphic (apply q/create-graphics (conj util/print-px :p2d))
      :timestamp  timestamp
-     :pdf        (q/create-graphics 
-                   (* util/pdf-dpi (first util/pdf-size))
-                   (* util/pdf-dpi (second util/pdf-size))
-                   :pdf
-                   (format "pdf/%s_print.pdf" timestamp))
+     :pdfs       (map #(apply q/create-graphics 
+                         (conj (mapv * 
+                                     util/pdf-size 
+                                     (repeat util/pdf-dpi))
+                               :pdf
+                               (format "pdf/%s_print_%d.pdf"
+                                       timestamp
+                                       %)))
+                      (range (count util/colors)))
      ; alternatively (q/frame-count)
      :frame      0
      :badge-rect  badge-rect
-     :event-poly  (.xor badge-rect (util/get-event-poly ahd-geo-font))
-     :points     (util/get-rand-radial-points)}))
-
-(defn get-block-polys [group]
-  (let [raw-bounds  (util/getBounds (.getPoints group))
-        border      (* util/dpi 0.1)
-        name-bounds (util/addPad 
-                      raw-bounds
-                      border)
-        badge-rect  (geomerative.RPolygon/createRectangle
-                      0 0 (q/width) (q/height))
-        short-height (/ (:height name-bounds) 4)
-        top1        (:top name-bounds)
-        top2        (+ (:top raw-bounds) (/ (:height raw-bounds) 4))
-        top3        (- (:bottom name-bounds) short-height)
-        half-width (/ (:width name-bounds) 2)
-        third-width (/ (:width name-bounds) 3)
-        quarter-width (/ (:width name-bounds) 4)
-        tall-height (/ (:height raw-bounds) 2)
-        rect-nums [[(:left name-bounds) 
-                    top1
-                    quarter-width 
-                    short-height]
-                   [(+ (:left name-bounds) third-width) 
-                    top1
-                    (* third-width 2) 
-                    short-height]
-                   [(:left name-bounds) 
-                    top2
-                    (* third-width 2) 
-                    tall-height]
-                   [(+ (:left name-bounds) (* quarter-width 3))
-                    top2
-                    quarter-width
-                    tall-height]
-                   [(:left name-bounds) 
-                    top3
-                    quarter-width 
-                    short-height]
-                   [(+ (:left name-bounds) third-width)
-                    top3
-                    (* third-width 2)
-                    short-height]
-                   [(:left name-bounds) 
-                    top1
-                    (:width name-bounds) 
-                    short-height]
-                   [(:left name-bounds) 
-                    top2
-                    (:width name-bounds) 
-                    tall-height]
-                   [(:left name-bounds) 
-                    top3
-                    (:width name-bounds) 
-                    short-height]]]
-    [(.union
-       (.toPolygon group)
-       (.xor
-         badge-rect
-         (util/union-all
-           (mapv 
-             #(apply 
-                util/createPolyRect
-                %)
-             [(nth rect-nums 0)
-              (nth rect-nums 4)
-              (nth rect-nums 7)]))))
-     (.union
-       (.toPolygon group)
-       (.xor
-         badge-rect
-         (util/union-all
-           (mapv
-             #(apply
-                util/createPolyRect
-                %)
-             [(nth rect-nums 3)
-              (nth rect-nums 6)
-              (nth rect-nums 8)]))))
-     (.union
-       (.toPolygon group)
-       (.xor
-         badge-rect
-         (util/union-all
-           (mapv
-             #(apply
-                util/createPolyRect
-                %)
-             [(nth rect-nums 1)
-              (nth rect-nums 2)
-              (nth rect-nums 5)]))))]))
+     :names       (map (fn [line] (take 2 (clojure.string/split line #",")))
+                       (clojure.string/split-lines 
+                         (slurp "/media/data/docs/me/art-hack-day/badges/data/participants.csv")))
+     }))
 
 (defn translate-polygon [polygon x y]
   (let [clone (.toPolygon polygon)]
@@ -166,62 +82,17 @@
                         (inc j)))))))))
 
 (defn update-state [state]
-  (let [name-group  (util/geoify-name (:font state) util/fullname)
-        name-poly   (.toPolygon name-group)
-        badge-rect  (:badge-rect state)
-        event-poly  (:event-poly state)
-        event-poly-ud (geomerative.RPolygon. event-poly)
-        extra-points (concat (:points state) (util/rotate-points (:points state)))
-        voronoi (util/voronoi extra-points)
-        regions (.getRegions voronoi)
-        polygons (map util/region-to-polygon regions extra-points)
-        ; modulate polygons based on location
-        grown-polygons (map
-                         (fn [polygon center]
-                           (gp/polygon2 
-                             (thi.ng.geom.polygon/inset-polygon 
-                               (:points polygon) 
-                               (* (- (/ (second center) 
-                                        (q/height)) 
-                                     0.5) 
-                                  20))))
-                         polygons
-                         extra-points)
-        patterns  (take 2 (repeatedly #(q/create-graphics 
-                                         (q/width) 
-                                         (q/height) 
-                                         :p2d)))]
-    (util/apply-dots (first patterns) false)
-    ;(util/apply-dots (second patterns) true)
-    (util/apply-lines (second patterns))
-    ; turn the other event poly upsidedown
-    (.rotate event-poly-ud Math/PI (/ (q/width) 2) (/ (q/height) 2))
-    (let [layer2 (.intersection
-                   badge-rect
-                   (.union
-                     (.diff
-                       (util/things-to-geom
-                         (take-nth 2 (rest grown-polygons)))
-                       name-poly)
-                     event-poly-ud))]
-      (if (:upside-down state)
-        (.rotate layer2 Math/PI (/ (q/width) 2) (/ (q/height) 2)))
-      (merge state
-             {:frame (inc (:frame state))
-              :polygons [
-                         (.intersection
-                           badge-rect
-                           (.union
-                             (.diff
-                               (util/things-to-geom
-                                 (take-nth 2 grown-polygons))
-                               name-poly)
-                             event-poly))
-                         layer2
-                         (geomerative.RPolygon.)
-                         ]
-              :patterns patterns
-                           }))))
+  (let [];patterns  (take 2 (repeatedly #(apply
+        ;                                 q/create-graphics 
+        ;                                 (conj util/print-px :p2d))))]
+    ;(util/apply-dots (first patterns) false)
+    ;;(util/apply-dots (second patterns) true)
+    ;(util/apply-lines (second patterns))
+    (merge state
+           {:frame (inc (:frame state))
+            :names (:names state)
+    ;        :patterns patterns
+                         })))
 
 (defn key-typed [state event]
   (case (:key event)
@@ -239,78 +110,151 @@
 (defn draw-state [state]
   (when (not (zero? (:frame state)))
     ;set up canvas
+    (q/blend-mode :blend)
     (q/background 255)
-    ;get voronoi polygons
-    (let [extra-points (concat (:points state) (util/rotate-points (:points state)))
-          voronoi (util/voronoi extra-points)
-          regions (.getRegions voronoi)
-          polygons (map util/region-to-polygon regions extra-points)
-          ; modulate polygons based on location
-          grown-polygons (map
-                           (fn [polygon center]
-                             (gp/polygon2 
-                               (thi.ng.geom.polygon/inset-polygon 
-                                 (:points polygon) 
-                                 (* (- (/ (second center) 
-                                          (q/height)) 
-                                       0.5) 
-                                    20))))
-                           polygons
-                           extra-points)]
-      ;draw to off-screen buffers
-      (dorun
-        (for [i (range (count (:graphics state)))]
-          (util/draw-it
-            (nth (:graphics state) i)
-            (nth (:polygons state) i)
-            [255])))
-            ;(util/get-color i))))
-      ;(util/draw-polygons
-      ;  (first (:graphics state))
-      ;  (util/get-color 0)
-      ;  (take-nth 2 grown-polygons))
-      ;(util/draw-polygons
-      ;  (second (:graphics state))
-      ;  (util/get-color 1)
-      ;  (take-nth 2 (rest grown-polygons)))
-      ;combine buffers on-screen
-      (q/blend-mode :subtract)
-      (q/fill 0)
-      (q/text-font (:ahd-font state) 40)
-      (q/text "ART_\nHACK\n_DAY" 
-              (* util/dpi 0.2) 
-              (- (q/height) (+ 68 (* util/dpi 0.2))))
-      (dorun
-        (for [i (range (count (:patterns state)))]
-          ;(do
-          ;  (q/with-graphics
-          ;    (:altGraphic state)
-          ;    (q/clear)
-          ;    (q/blend-mode :blend)
-          ;    (q/image (nth (:patterns state) 1) 0 0)
-          ;    (q/blend-mode :subtract)
-          ;    (q/image (nth (:graphics state) 1) 0 0))
-          ;  ;(q/image (nth (:graphics state) i) 0 0))))
-          ;  (q/blend-mode :blend)
-          ;  (q/image (:altGraphic state) 0 0))))
-          ;(q/image (nth (:graphics state) i) 0 0)))
-          ;(q/image (nth (:patterns state) i) 0 0)))
-          (let [img (.copy (nth (:patterns state) i))]
-          (do
-            (q/mask-image
-              img
-              ;(.copy (nth (:patterns state) i))
-              (.copy (nth (:graphics state) i)))
-            (q/push-matrix)
-            (q/translate (/ (q/width) 2) (* util/dpi 0.23))
-            (q/rotate (if (zero? i) 0 0.05))
-            (q/translate (- (/ (q/width) 2)) 
-                         (* util/dpi -0.23))
-            (q/image img 0 0)
-            (q/pop-matrix)))))
-      (let [d 0.28]
-      (q/with-fill [0 255 255]
-      (q/ellipse (/ (q/width) 2) (* util/dpi (+ 0.23 (/ d 2))) (* util/dpi d) (* util/dpi d))
-      (q/ellipse (/ (q/width) 2) (- (q/height) (* util/dpi (+ 0.23 (/ d 2)))) (* util/dpi d) (* util/dpi d))))
-      (when (= (:frame state) 1)
-        (util/save state)))))
+    (if (empty? (:names state))
+      (do
+        (q/blend-mode :blend)
+        (q/with-fill [0]
+          (q/text "done" (/ (q/width) 2) (/ (q/height) 2))))
+      ;get voronoi polygons
+      (let [name-group  (util/geoify-name (:font state) 
+                                          (first (:names state))
+                                          (first util/print-px)
+                                          (second util/print-px)
+                                          util/safety
+                                          util/bleed
+                                          util/print-dpi)
+            name-poly   (.toPolygon name-group)
+            badge-rect  (:badge-rect state)
+            event-poly  (util/get-event-poly (:ahd-geo-font state)
+                                             (first util/print-px)
+                                             (second util/print-px)
+                                             util/bleed
+                                             util/print-dpi)
+            event-poly-ud (geomerative.RPolygon. event-poly)
+            points (apply util/get-rand-radial-points util/print-px)
+            extra-points (concat points 
+                                 (apply util/rotate-points 
+                                        (concat [points]
+                                                util/print-px)))
+            voronoi (util/voronoi extra-points)
+            regions (.getRegions voronoi)
+            polygons (map util/region-to-polygon regions extra-points)
+            ; modulate polygons based on location
+            grown-polygons (map
+                             (fn [polygon center]
+                               (gp/polygon2
+                                 (thi.ng.geom.polygon/inset-polygon
+                                   (:points polygon)
+                                   (* (- (/ (second center)
+                                            (second util/print-px))
+                                         0.5)
+                                      (* util/print-dpi 0.1)))))
+                             polygons
+                             extra-points)]
+        (.rotate event-poly-ud 
+                 Math/PI 
+                 (/ (first util/print-px) 2) 
+                 (/ (second util/print-px) 2))
+        ;(println (str "render" (first (first (:names state)))))
+        ;draw to off-screen buffers
+        (dorun
+          (for [i (range (count (:graphics state)))]
+            (do
+              (util/draw-it
+                (:altGraphic state)
+                ;(util/things-to-geom
+                ;  (take-nth 2 (drop i grown-polygons)))
+                ;[255])
+                (.intersection
+                  badge-rect
+                  (.union
+                    (.diff
+                      (util/things-to-geom
+                        (take-nth 2 (drop i grown-polygons)))
+                      name-poly)
+                    (nth [event-poly event-poly-ud] i)))
+                [255])
+              (q/with-graphics
+                (nth (:graphics state) i)
+                (q/background 255)
+                ;(q/image (:altGraphic state) 0 0)))))
+                (let [img (.copy (nth (:patterns state) i))]
+                (do
+                  (q/mask-image
+                    img
+                    ;(.copy (nth (:patterns state) i))
+                    (.copy (:altGraphic state)))
+                    (q/image img 0 0)))))))
+
+              ;(util/get-color i))))
+        ;(util/draw-polygons
+        ;  (first (:graphics state))
+        ;  (util/get-color 0)
+        ;  (take-nth 2 grown-polygons))
+        ;(util/draw-polygons
+        ;  (second (:graphics state))
+        ;  (util/get-color 1)
+        ;  (take-nth 2 (rest grown-polygons)))
+        ;combine buffers on-screen
+        (q/blend-mode :multiply)
+        (let [g (first (:graphics state))
+              width (.-width g)
+              height (.-height g)]
+          (q/with-graphics
+            g
+            (q/fill 0)
+            (q/text-font (:ahd-font state) (* 40 
+                                              (/ util/print-dpi 
+                                                 util/screen-dpi)))
+            (q/text "ART_\nHACK\n_DAY" 
+                    (* util/print-dpi util/safety) 
+                    (- height (+ (* 68 (/ util/print-dpi
+                                          util/screen-dpi)) 
+                                 (* util/print-dpi util/safety))))))
+        ;(q/push-matrix)
+        ;(q/scale (/ util/screen-dpi util/print-dpi))
+        (dorun
+          (for [i (range (count (:patterns state)))]
+            ;(do
+            ;  (q/with-graphics
+            ;    (:altGraphic state)
+            ;    (q/clear)
+            ;    (q/blend-mode :blend)
+            ;    (q/image (nth (:patterns state) 1) 0 0)
+            ;    (q/blend-mode :subtract)
+            ;    (q/image (nth (:graphics state) 1) 0 0))
+            ;  ;(q/image (nth (:graphics state) i) 0 0))))
+            ;  (q/blend-mode :blend)
+            ;  (q/image (:altGraphic state) 0 0))))
+            ;(q/image (nth (:graphics state) i) 0 0)))
+            ;(q/image (nth (:patterns state) i) 0 0)))
+            (q/image (nth (:graphics state) i) 0 0)))
+        ;(q/pop-matrix)
+        (q/blend-mode :blend)
+        (let [d 0.28]
+          (q/with-fill [0 255 255]
+            (q/ellipse (/ (q/width) 2) 
+                       (* util/screen-dpi (+ 0.23 (/ d 2) util/bleed)) 
+                       (* util/screen-dpi d) 
+                       (* util/screen-dpi d))
+            (q/ellipse (/ (q/width) 2) 
+                       (- (q/height) (* util/screen-dpi (+ 0.23 (/ d 2) util/bleed))) 
+                       (* util/screen-dpi d) 
+                       (* util/screen-dpi d))))
+        (let [bleed-px (* util/screen-dpi util/bleed)
+              safe-px  (* util/screen-dpi util/safety)]
+          (q/with-fill [0 0]
+            (q/with-stroke [255 0 0]
+              (q/rect bleed-px
+                      bleed-px
+                      (- (q/width) (* bleed-px 2))
+                      (- (q/height) (* bleed-px 2))))
+            (q/with-stroke [0 255 0]
+              (q/rect safe-px
+                      safe-px
+                      (- (q/width) (* safe-px 2))
+                      (- (q/height) (* safe-px 2))))))
+        (when (= (:frame state) 1)
+          (util/save state))))))

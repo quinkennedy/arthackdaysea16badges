@@ -6,7 +6,9 @@
 
 (q/defsketch badges
   :title "Subtractive blended badges"
-  :size (map #(* util/dpi %) util/inch_size)
+  :size (map * 
+             util/inch_size 
+             (repeat util/screen-dpi))
   :renderer :p2d
   ; setup function called only once, during sketch initialization.
   :setup dynamic/setup
