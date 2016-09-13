@@ -277,7 +277,9 @@
       (q/blend-mode :subtract)
       (q/fill 0)
       (q/text-font (:ahd-font state) 40)
-      ;(q/text "ART_\nHACK\n_DAY" 20 50)
+      (q/text "ART_\nHACK\n_DAY" 
+              (* util/dpi 0.2) 
+              (- (q/height) (+ 68 (* util/dpi 0.2))))
       (dorun
         (for [i (range (count (:patterns state)))]
           ;(do
@@ -300,10 +302,15 @@
               ;(.copy (nth (:patterns state) i))
               (.copy (nth (:graphics state) i)))
             (q/push-matrix)
-            (q/translate (/ (q/width) 2) 0)
+            (q/translate (/ (q/width) 2) (* util/dpi 0.23))
             (q/rotate (if (zero? i) 0 0.05))
-            (q/translate (- (/ (q/width) 2)) 0)
+            (q/translate (- (/ (q/width) 2)) 
+                         (* util/dpi -0.23))
             (q/image img 0 0)
             (q/pop-matrix)))))
+      (let [d 0.28]
+      (q/with-fill [0 255 255]
+      (q/ellipse (/ (q/width) 2) (* util/dpi (+ 0.23 (/ d 2))) (* util/dpi d) (* util/dpi d))
+      (q/ellipse (/ (q/width) 2) (- (q/height) (* util/dpi (+ 0.23 (/ d 2)))) (* util/dpi d) (* util/dpi d))))
       (when (= (:frame state) 1)
         (util/save state)))))

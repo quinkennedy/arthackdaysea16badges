@@ -11,7 +11,7 @@
             ))
 
 (def dpi 138)
-(def inch_size [3 4])
+(def inch_size [3 4.5])
 (def pdf-dpi 72)
 (def pdf-size [11 8.5])
 (def font-size 100)
@@ -269,18 +269,24 @@
                                        (second %1)])
                                    [[] text]
                                    order)))
-        polygon (.toPolygon (.toGroup font (apply str (take 5 us-text))))
-        polygon2 (.toPolygon (.toGroup font (apply str (drop 5 us-text))))]
-    (.translate polygon2 0 font-size)
-    ;(.scale polygon 0.6)
-    (let [full-poly (.union polygon polygon2)
-          bounds (getBounds (.getPoints full-poly))]
-      (.translate full-poly
-                  (- (/ (- (q/width) (:width bounds)) 2) (:left bounds))
-                  ;center
-                  (- (/ (- (q/height) (:height bounds)) 2) (:top bounds)))
-                  ;(/ (* (q/height) 9) 10))
-      full-poly)))
+        polygon (.toPolygon (.toGroup font us-text))
+        bounds (getBounds (.getPoints polygon))]
+    ; scale name to fit horizontally
+    (.scale polygon
+            (min 1 
+                 (/ (- (q/width) 
+                       (* dpi (* 0 2))) 
+                    (:width bounds))))
+    (let [bounds2 (getBounds (.getPoints polygon))]
+      ; align top of name with top of badge
+      (.translate polygon
+                  (- (* dpi 0) (:left bounds2)) 
+                  (+ (- (:top bounds2))
+                     (/ (q/height) 2)))
+                  ;(+ (- (/ (q/height) 2)
+                  ;      (:top bounds2))
+                  ;   (* dpi 0.3)))
+      polygon)))
 
 (defn geoify-name [font fullname]
   ; render first and last name
@@ -294,14 +300,14 @@
       (.scale group 
               (min 1 
                    (/ (- (q/width) 
-                         (* dpi (* 0.3 2))) 
+                         (* dpi (* 0.2 2))) 
                       (:width bounds))))
       (let [bounds2 (getBounds (.getPoints group))]
         ; align top of name with top of badge
         (.translate group 
-                    (- (* dpi 0.3) (:left bounds2)) 
+                    (- (* dpi 0.2) (:left bounds2)) 
                     (+ (- (:top bounds2))
-                       (* dpi 0.3)))
+                       (* dpi (+ 0.23 0.28 0.1))))
                     ;(+ (- (/ (q/height) 2)
                     ;      (:top bounds2))
                     ;   (* dpi 0.3)))
