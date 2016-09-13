@@ -156,7 +156,7 @@
 (defn get-rand-radial-points []
   (loop [i 0
          points []]
-    (if (= i 26)
+    (if (= i 12)
       points
       (let [point (map + 
                        (polar-to-cartesian 
@@ -241,9 +241,25 @@
   [(* radius (Math/cos angle))
    (* radius (Math/sin angle))])
 
+(defn get-brand-poly [font]
+  (let [p1 (.toPolygon (.toGroup font "ART_"))
+        p2 (.toPolygon (.toGroup font "HACK"))
+        p3 (.toPolygon (.toGroup font "_DAY"))]
+    (.translate p2 0 font-size)
+    (.translate p3 0 (+ font-size font-size))
+    ;(.scale polygon 0.6)
+    (let [full-poly (union-all [p1 p2 p3])
+          bounds (getBounds (.getPoints full-poly))]
+      (.translate full-poly
+                  (- (/ (- (q/width) (:width bounds)) 2) (:left bounds))
+                  ;center
+                  (- (/ (- (q/height) (:height bounds)) 2) (:top bounds)))
+                  ;(/ (* (q/height) 9) 10))
+      full-poly)))
+
 (defn get-event-poly [font]
   (let [text "ERASURE"
-        order (shuffle (take 9 (concat (repeat (count text) true) (repeat false))))
+        order (shuffle (take 10 (concat (repeat (count text) true) (repeat false))))
         us-text (apply str 
                        (first
                          (reduce #(if %2 
@@ -253,13 +269,18 @@
                                        (second %1)])
                                    [[] text]
                                    order)))
-        polygon (.toPolygon (.toGroup font us-text))]
-    (.scale polygon 0.6)
-    (let [bounds (getBounds (.getPoints polygon))]
-      (.translate polygon
+        polygon (.toPolygon (.toGroup font (apply str (take 5 us-text))))
+        polygon2 (.toPolygon (.toGroup font (apply str (drop 5 us-text))))]
+    (.translate polygon2 0 font-size)
+    ;(.scale polygon 0.6)
+    (let [full-poly (.union polygon polygon2)
+          bounds (getBounds (.getPoints full-poly))]
+      (.translate full-poly
                   (- (/ (- (q/width) (:width bounds)) 2) (:left bounds))
-                  (/ (* (q/height) 9) 10))
-      polygon)))
+                  ;center
+                  (- (/ (- (q/height) (:height bounds)) 2) (:top bounds)))
+                  ;(/ (* (q/height) 9) 10))
+      full-poly)))
 
 (defn geoify-name [font fullname]
   ; render first and last name
@@ -276,20 +297,22 @@
                          (* dpi (* 0.3 2))) 
                       (:width bounds))))
       (let [bounds2 (getBounds (.getPoints group))]
-        ; align bottom of name with middle of badge
+        ; align top of name with top of badge
         (.translate group 
                     (- (* dpi 0.3) (:left bounds2)) 
-                    (- (- (/ (q/height) 2)
-                          (/ (+ (:top bounds2) (:bottom bounds2)) 2))
+                    (+ (- (:top bounds2))
                        (* dpi 0.3)))
+                    ;(+ (- (/ (q/height) 2)
+                    ;      (:top bounds2))
+                    ;   (* dpi 0.3)))
         group))))
 
 (defn draw-it [graphics polygon color]
   (q/with-graphics 
     graphics
     ;(q/clear)
-    ;(q/background 0)
-    (q/background 255)
+    (q/background 0)
+    ;(q/background 255)
     ;(q/background 255 255 255 0)
     (q/no-stroke)
     (q/with-fill color

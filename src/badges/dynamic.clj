@@ -198,11 +198,11 @@
     (.rotate event-poly-ud Math/PI (/ (q/width) 2) (/ (q/height) 2))
     (let [layer2 (.intersection
                    badge-rect
-                   (.intersection
-                     (.union
-                       name-poly
+                   (.union
+                     (.diff
                        (util/things-to-geom
-                         (take-nth 2 (rest grown-polygons))))
+                         (take-nth 2 (rest grown-polygons)))
+                       name-poly)
                      event-poly-ud))]
       (if (:upside-down state)
         (.rotate layer2 Math/PI (/ (q/width) 2) (/ (q/height) 2)))
@@ -211,11 +211,11 @@
               :polygons [
                          (.intersection
                            badge-rect
-                           (.intersection
-                             (.union
-                               name-poly
+                           (.union
+                             (.diff
                                (util/things-to-geom
-                                 (take-nth 2 grown-polygons)))
+                                 (take-nth 2 grown-polygons))
+                               name-poly)
                              event-poly))
                          layer2
                          (geomerative.RPolygon.)
@@ -229,9 +229,9 @@
               {:frame 0})
     :r (merge state
               {:points (util/get-rand-radial-points)
-               :event-poly  (.xor (:badge-rect state)
+               :event-poly  ;(.xor (:badge-rect state)
                                   (util/get-event-poly 
-                                    (:ahd-geo-font state)))})
+                                    (:ahd-geo-font state))})
     :u (merge state
               {:upside-down (not (:upside-down state))})
     state))
@@ -263,7 +263,7 @@
           (util/draw-it
             (nth (:graphics state) i)
             (nth (:polygons state) i)
-            [0])))
+            [255])))
             ;(util/get-color i))))
       ;(util/draw-polygons
       ;  (first (:graphics state))
@@ -277,7 +277,7 @@
       (q/blend-mode :subtract)
       (q/fill 0)
       (q/text-font (:ahd-font state) 40)
-      (q/text "ART_\nHACK\n_DAY" 20 50)
+      ;(q/text "ART_\nHACK\n_DAY" 20 50)
       (dorun
         (for [i (range (count (:patterns state)))]
           ;(do
@@ -299,7 +299,11 @@
               img
               ;(.copy (nth (:patterns state) i))
               (.copy (nth (:graphics state) i)))
-            (q/with-rotation (if (zero? i) [0] [0.05])
-              (q/image img 0 0))))))
+            (q/push-matrix)
+            (q/translate (/ (q/width) 2) 0)
+            (q/rotate (if (zero? i) 0 0.05))
+            (q/translate (- (/ (q/width) 2)) 0)
+            (q/image img 0 0)
+            (q/pop-matrix)))))
       (when (= (:frame state) 1)
         (util/save state)))))
