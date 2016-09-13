@@ -61,22 +61,29 @@
             (recur next-badge 0 (+ y y-step) (not even))
             (recur next-badge (+ x step-size) y even)))))))
 
-(defn apply-dots [graphics]
+(defn apply-dots [graphics inv]
   (let [centers (get-honeycomb-centers 100)]
     (q/with-graphics
       graphics
+      ;(q/clear)
+      (if inv
+        (q/background 0)
+        (q/background 255 0))
       ;(q/no-stroke)
-      (q/with-fill [0]
+      (q/with-fill (if inv [255] [0])
+        (q/with-stroke (if inv [255] [0])
         (doall
           (for [center centers]
             (q/ellipse
               (first center)
               (second center)
-              2 2)))))))
+              2 2))))))))
 
 (defn apply-lines [graphics]
   (q/with-graphics
     graphics
+    ;(q/clear)
+    (q/background 255 0)
     (q/stroke 0)
     ;(q/stroke-weight 2)
     (dorun
@@ -235,8 +242,19 @@
    (* radius (Math/sin angle))])
 
 (defn get-event-poly [font]
-  (let [polygon (.toPolygon (.toGroup font "Erasure"))]
-    (.scale polygon 0.5)
+  (let [text "ERASURE"
+        order (shuffle (take 9 (concat (repeat (count text) true) (repeat false))))
+        us-text (apply str 
+                       (first
+                         (reduce #(if %2 
+                                      [(conj (first %1) (first (second %1)))
+                                       (rest (second %1))]
+                                      [(conj (first %1) \_)
+                                       (second %1)])
+                                   [[] text]
+                                   order)))
+        polygon (.toPolygon (.toGroup font us-text))]
+    (.scale polygon 0.6)
     (let [bounds (getBounds (.getPoints polygon))]
       (.translate polygon
                   (- (/ (- (q/width) (:width bounds)) 2) (:left bounds))
@@ -262,16 +280,16 @@
         (.translate group 
                     (- (* dpi 0.3) (:left bounds2)) 
                     (- (- (/ (q/height) 2)
-                          (:bottom bounds2))
+                          (/ (+ (:top bounds2) (:bottom bounds2)) 2))
                        (* dpi 0.3)))
         group))))
 
 (defn draw-it [graphics polygon color]
   (q/with-graphics 
     graphics
-    (q/clear)
+    ;(q/clear)
     ;(q/background 0)
-    ;(q/background 255)
+    (q/background 255)
     ;(q/background 255 255 255 0)
     (q/no-stroke)
     (q/with-fill color

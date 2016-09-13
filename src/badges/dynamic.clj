@@ -13,14 +13,21 @@
   (RCommand/setSegmentLength 1)
   (RCommand/setSegmentator RCommand/UNIFORMLENGTH)
   (let [font      (RFont. "Colfax-WebMedium.ttf" util/font-size)
+        ahd-geo-font  (RFont. "arthackday.ttf" util/font-size)
+        ahd-font  (q/create-font "arthackday.ttf" util/font-size)
         timestamp (util/get-timestamp)
+        badge-rect  (geomerative.RPolygon/createRectangle
+                      0 0 (q/width) (q/height))
         patterns  (take 2 (repeatedly #(q/create-graphics 
                                          (q/width) 
                                          (q/height) 
                                          :p2d)))]
-    (util/apply-dots (first patterns))
+    (util/apply-dots (first patterns) false)
+    ;(util/apply-dots (second patterns) true)
     (util/apply-lines (second patterns))
     {:font       font
+     :ahd-geo-font ahd-geo-font
+     :ahd-font   ahd-font
      :graphics   (take (count util/colors)
                      (repeatedly 
                        #(q/create-graphics (q/width) (q/height) :p2d)))
@@ -34,6 +41,8 @@
                    (format "pdf/%s_print.pdf" timestamp))
      ; alternatively (q/frame-count)
      :frame      0
+     :badge-rect  badge-rect
+     :event-poly  (.xor badge-rect (util/get-event-poly ahd-geo-font))
      :points     (util/get-rand-radial-points)}))
 
 (defn get-block-polys [group]
@@ -159,9 +168,8 @@
 (defn update-state [state]
   (let [name-group  (util/geoify-name (:font state) util/fullname)
         name-poly   (.toPolygon name-group)
-        badge-rect  (geomerative.RPolygon/createRectangle
-                      0 0 (q/width) (q/height))
-        event-poly  (.xor badge-rect (util/get-event-poly (:font state)))
+        badge-rect  (:badge-rect state)
+        event-poly  (:event-poly state)
         event-poly-ud (geomerative.RPolygon. event-poly)
         extra-points (concat (:points state) (util/rotate-points (:points state)))
         voronoi (util/voronoi extra-points)
@@ -183,7 +191,8 @@
                                          (q/width) 
                                          (q/height) 
                                          :p2d)))]
-    (util/apply-dots (first patterns))
+    (util/apply-dots (first patterns) false)
+    ;(util/apply-dots (second patterns) true)
     (util/apply-lines (second patterns))
     ; turn the other event poly upsidedown
     (.rotate event-poly-ud Math/PI (/ (q/width) 2) (/ (q/height) 2))
@@ -212,14 +221,17 @@
                          (geomerative.RPolygon.)
                          ]
               :patterns patterns
-              }))))
+                           }))))
 
 (defn key-typed [state event]
   (case (:key event)
     :s (merge state
               {:frame 0})
     :r (merge state
-              {:points (util/get-rand-radial-points)})
+              {:points (util/get-rand-radial-points)
+               :event-poly  (.xor (:badge-rect state)
+                                  (util/get-event-poly 
+                                    (:ahd-geo-font state)))})
     :u (merge state
               {:upside-down (not (:upside-down state))})
     state))
@@ -251,7 +263,7 @@
           (util/draw-it
             (nth (:graphics state) i)
             (nth (:polygons state) i)
-            [255 255 255])))
+            [0])))
             ;(util/get-color i))))
       ;(util/draw-polygons
       ;  (first (:graphics state))
@@ -263,6 +275,9 @@
       ;  (take-nth 2 (rest grown-polygons)))
       ;combine buffers on-screen
       (q/blend-mode :subtract)
+      (q/fill 0)
+      (q/text-font (:ahd-font state) 40)
+      (q/text "ART_\nHACK\n_DAY" 20 50)
       (dorun
         (for [i (range (count (:patterns state)))]
           ;(do
@@ -284,6 +299,7 @@
               img
               ;(.copy (nth (:patterns state) i))
               (.copy (nth (:graphics state) i)))
-            (q/image img 0 0)))))
+            (q/with-rotation (if (zero? i) [0] [0.05])
+              (q/image img 0 0))))))
       (when (= (:frame state) 1)
         (util/save state)))))
