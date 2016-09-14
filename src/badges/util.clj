@@ -10,21 +10,80 @@
             [thi.ng.geom.polygon :as gp]
             ))
 
-(def print-dpi 138);600)
+(def print-dpi 600)
 (def screen-dpi 138)
-(def finish_size [3 4.5])
+(def finish-size [3 4.5])
 (def bleed 0.25)
 (def margin 0.2)
 (def safety (+ bleed margin))
-(def inch_size (mapv + finish_size (repeat (* bleed 2))))
-(def print-px (mapv * inch_size (repeat print-dpi)))
+(def inch-size (mapv + finish-size (repeat (* bleed 2))))
+(def print-px (mapv * inch-size (repeat print-dpi)))
 (def pdf-dpi 72)
 (def pdf-size [8.5 11])
 (def font-size 100)
 (def fullname '("Quin" "Kennedy"))
+(def print-margin 0.25)
 (def colors [[255 93 48]
              [1 163 160]
              ])
+
+(defn add-corner-cut-marks [pdf]
+  (let [out-line (* pdf-dpi (+ print-margin bleed))
+        inh-line (+ out-line (* pdf-dpi (first finish-size)))
+        inv-line (+ out-line (* pdf-dpi (second finish-size)))
+        start-line (* pdf-dpi (- print-margin (/ bleed 2)))
+        end-line (+ start-line (* pdf-dpi bleed))]
+    (q/line out-line start-line out-line end-line)
+    (q/line inh-line start-line inh-line end-line)
+    (q/line start-line out-line end-line out-line)
+    (q/line start-line inv-line end-line inv-line)))
+
+(defn add-cut-marks [pdf]
+  (add-corner-cut-marks pdf)
+  (q/push-matrix)
+  (q/translate (* (+ (first inch-size) print-margin) 2 pdf-dpi) 0)
+  (q/scale -1 1)
+  (add-corner-cut-marks pdf)
+  (q/pop-matrix)
+  (q/push-matrix)
+  (q/translate 0 (* (+ (second inch-size) print-margin) 2 pdf-dpi))
+  (q/scale 1 -1)
+  (add-corner-cut-marks pdf)
+  (q/push-matrix)
+  (q/translate (* (+ (first inch-size) print-margin) 2 pdf-dpi) 0)
+  (q/scale -1 1)
+  (add-corner-cut-marks pdf)
+  (q/pop-matrix)
+  (q/pop-matrix))
+
+(defn to-pdf [state]
+  (let [index (dec (:frame state))
+        place (mod index 4)]
+    (doall
+      (for [i (range (count (:pdfs state)))]
+        (q/with-graphics
+          (nth (:pdfs state) i)
+          (when (and (zero? place) (not (zero? index)))
+            (add-cut-marks (nth (:pdfs state) i))
+            (.nextPage (nth (:pdfs state) i)))
+            (q/with-translation [(* pdf-dpi (+ print-margin 
+                                               (* (mod place 2)
+                                                  (first inch-size))))
+                                 (* pdf-dpi (+ print-margin 
+                                               (* (int (/ place 2))
+                                                  (second inch-size))))]
+              (q/push-matrix)
+              (q/scale (/ pdf-dpi print-dpi))
+              (q/image (nth (:graphics state) i) 0 0)
+              (q/pop-matrix)))))))
+
+(defn finish-pdf [state]
+  (doall
+    (for [pdf (:pdfs state)]
+      (q/with-graphics
+        pdf
+        (add-cut-marks pdf)
+        (.dispose pdf)))))
 
 (defn get-honeycomb-centers [num-wide width height]
   (let [x-step (/ width num-wide)
@@ -39,39 +98,12 @@
       [(+ (* x x-step) (if (even? y) (/ x-step 2) 0))
        (* y y-step)])))
 
-(defn get-circle-pattern [num-wide]
-  (let [
-        step-size (/ (q/width) num-wide)
-        y-step    (Math/sqrt 
-                    (-
-                      (* step-size step-size)
-                      (Math/pow 
-                        (/ step-size 2) 
-                        2)))]
-    (loop [badge (geomerative.RPolygon.)
-           x     0
-           y     0
-           even  false]
-      (if (> y (+ (q/height) step-size))
-        badge
-        (let [next-badge (.union badge
-                                 (geomerative.RPolygon/createCircle
-                                   (+ x 
-                                      (if even 
-                                        (/ step-size 2)
-                                        0))
-                                   y
-                                   (/ (* 2 step-size) 5)))]
-          (if (> x (q/width))
-            (recur next-badge 0 (+ y y-step) (not even))
-            (recur next-badge (+ x step-size) y even)))))))
-
 (defn apply-dots [graphics inv]
   (let [num-wide 100
         width (.-width graphics)
         height (.-height graphics)
         centers (get-honeycomb-centers num-wide width height)
-        diameter (/ width num-wide 2)]
+        diameter (* (/ width num-wide) 2/3)]
     (q/with-graphics
       graphics
       (q/clear)
@@ -158,16 +190,6 @@
   [(Math/sqrt (+ (* x x) (* y y)))
    (Math/atan2 y x)])
 
-(defn get-rand-points []
-  (loop [i 0
-         points []]
-    (if (= i 26)
-      points
-      (recur (inc i)
-             (conj points 
-                   [(q/random (q/width)) 
-                    (q/random (q/height))])))))
-
 (defn get-rand-radial-points [width height]
   (loop [i 0
          points []]
@@ -186,11 +208,6 @@
           (recur (inc i)
                  (conj points point))
           (recur i points))))))
-
-(defn flip-points [points]
-  (let [half-width (/ (q/width) 2)]
-    (mapv (fn [[x y]] [(+ half-width (- half-width x)) y])
-          points)))
 
 (defn rotate-points [points width height]
   (let [center [(/ width 2) (/ height 2)]]
@@ -256,22 +273,6 @@
   [(* radius (Math/cos angle))
    (* radius (Math/sin angle))])
 
-(defn get-brand-poly [font]
-  (let [p1 (.toPolygon (.toGroup font "ART_"))
-        p2 (.toPolygon (.toGroup font "HACK"))
-        p3 (.toPolygon (.toGroup font "_DAY"))]
-    (.translate p2 0 font-size)
-    (.translate p3 0 (+ font-size font-size))
-    ;(.scale polygon 0.6)
-    (let [full-poly (union-all [p1 p2 p3])
-          bounds (getBounds (.getPoints full-poly))]
-      (.translate full-poly
-                  (- (/ (- (q/width) (:width bounds)) 2) (:left bounds))
-                  ;center
-                  (- (/ (- (q/height) (:height bounds)) 2) (:top bounds)))
-                  ;(/ (* (q/height) 9) 10))
-      full-poly)))
-
 (defn get-event-poly [font width height side-space dpi]
   (let [text "ERASURE"
         order (shuffle (take 10 (concat (repeat (count text) true) (repeat false))))
@@ -304,8 +305,8 @@
 
 (defn geoify-name [font fullname width height side-padding top-padding dpi]
   ; render first and last name
-  (let [group (.toGroup font (first fullname))
-        group2 (.toGroup font (second fullname))]
+  (let [group (.toGroup font (or (first fullname) " "))
+        group2 (.toGroup font (or (second fullname) " "))]
     ; add last name under first name
     (.translate group2 0 font-size)
     (.addGroup group group2)
@@ -376,207 +377,6 @@
                (format "output/%s_graphic_%d"
                        timestamp
                        i))))))
-;  ;;
-;  ;; Render to PDF to match screen colors
-;  ;;
-;  (q/with-graphics
-;    (:altGraphic state)
-;    (q/background 255)
-;    (q/blend-mode :subtract)
-;    (q/image
-;      (:topGraphic state)
-;      0 0))
-;  (q/with-graphics
-;    (:pdf state)
-;    (q/translate pdf-dpi (* pdf-dpi 0.25))
-;    (q/scale (/ pdf-dpi dpi))
-;    (q/image
-;      (:altGraphic state)
-;      0 0))
-;  (q/with-graphics
-;    (:altGraphic state)
-;    (q/background 255)
-;    (q/blend-mode :subtract)
-;    (q/image
-;      (:bottomGraphic state)
-;      0 0))
-;  (q/with-graphics
-;    (:pdf state)
-;    (q/translate pdf-dpi (* pdf-dpi 0.25))
-;    (q/scale (/ pdf-dpi dpi))
-;    (q/translate 0 (q/height))
-;    (q/image
-;      (:altGraphic state)
-;      0 0))
-;  ;;
-;  ;; Render to PDF using Cyan and Magenta
-;  ;;
-;  (q/with-graphics
-;    (:altGraphic state)
-;    (q/background 255)
-;    (q/blend-mode :blend))
-;  (draw-it (:altGraphic state)
-;                (:topPoly state)
-;                [0 255 255])
-;  (q/with-graphics
-;    (:pdf state)
-;    (q/translate pdf-dpi (* pdf-dpi 0.25))
-;    (q/scale (/ pdf-dpi dpi))
-;    (q/translate (q/width) 0)
-;    (q/image
-;      (:altGraphic state)
-;      0 0))
-;  (q/with-graphics
-;    (:altGraphic state)
-;    (q/background 255)
-;    (q/blend-mode :blend))
-;  (draw-it (:altGraphic state)
-;                (:bottomPoly state)
-;                [255 0 255])
-;  (q/with-graphics
-;    (:pdf state)
-;    (q/translate pdf-dpi (* pdf-dpi 0.25))
-;    (q/scale (/ pdf-dpi dpi))
-;    (q/translate (q/width) (q/height))
-;    (q/image
-;      (:altGraphic state)
-;      0 0))
-;  ;;
-;  ;; Render to PDF with Red Blue
-;  ;;
-;  (q/with-graphics
-;    (:altGraphic state)
-;    (q/background 255)
-;    (q/blend-mode :blend))
-;  (draw-it (:altGraphic state)
-;                (:topPoly state)
-;                [255 0 0])
-;  (q/with-graphics
-;    (:pdf state)
-;    (q/translate pdf-dpi (* pdf-dpi 0.25))
-;    (q/scale (/ pdf-dpi dpi))
-;    (q/translate (* (q/width) 2) 0)
-;    (q/image
-;      (:altGraphic state)
-;      0 0))
-;  (q/with-graphics
-;    (:altGraphic state)
-;    (q/background 255)
-;    (q/blend-mode :blend))
-;  (draw-it (:altGraphic state)
-;                (:bottomPoly state)
-;                [0 0 255])
-;  (q/with-graphics
-;    (:pdf state)
-;    (q/translate pdf-dpi (* pdf-dpi 0.25))
-;    (q/scale (/ pdf-dpi dpi))
-;    (q/translate (* (q/width) 2) (q/height))
-;    (q/image
-;      (:altGraphic state)
-;      0 0)
-;  ;;
-;  ;; Render to PDF with inverted screen colors
-;  ;;
-;  ;(q/with-graphics
-;  ;  (:pdf state)
-;  ;  (q/translate pdf-dpi (* pdf-dpi 0.25))
-;  ;  (q/scale (/ pdf-dpi dpi))
-;  ;  (q/translate (* (q/width) 2) 0)
-;  ;  (q/image
-;  ;    (:topGraphic state)
-;  ;    0 0)
-;  ;  (q/translate 0 (q/height))
-;  ;  (q/image
-;  ;    (:bottomGraphic state)
-;  ;    0 0)
-;    (.dispose (:pdf state))))
-
-(def the-e [[0 0 0 0 0 0 0 0 0 0]
-            [0 0 1 1 1 1 1 1 0 0]
-            [0 0 1 1 1 1 1 1 0 0]
-            [0 0 1 1 1 1 1 1 0 0]
-            [0 0 1 1 1 1 1 1 0 0]
-            [0 0 1 1 0 0 0 0 0 0]
-            [0 0 1 1 0 0 0 0 0 0]
-            [0 0 1 1 0 0 0 0 0 0]
-            [0 0 1 1 1 1 0 0 0 0]
-            [0 0 1 1 1 1 0 0 0 0]
-            [0 0 1 1 1 1 0 0 0 0]
-            [0 0 1 1 1 1 0 0 0 0]
-            [0 0 1 1 0 0 0 0 0 0]
-            [0 0 1 1 0 0 0 0 0 0]
-            [0 0 1 1 0 0 0 0 0 0]
-            [0 0 1 1 1 1 1 1 0 0]
-            [0 0 1 1 1 1 1 1 0 0]
-            [0 0 1 1 1 1 1 1 0 0]
-            [0 0 1 1 1 1 1 1 0 0]
-            [0 0 0 0 0 0 0 0 0 0]])
-
-(defn in-e? [pt]
-  (not (zero? (get
-                (get
-                  the-e
-                  (int (/ (second pt) 2)))
-                (int (/ (first pt) 2))))))
-
-(defn add-e [polygons]
-  (let [size     (/ (q/height) 2)
-        paddingW (/ (- (q/width) 
-                       size)
-                    2)
-        paddingH (/ (q/height) 2)]
-    (mapv #(.translate % 
-                       (- paddingW)
-                       (- paddingH))
-           polygons)
-    (let [polys
-           (let [font (RFont. "Colfax-WebMedium.ttf" 300)
-                 ePoly (.toPolygon (.toGroup font "E"))
-                 numWide 20
-                 numHigh 40
-                 allPoints (for [x (range numWide)
-                                 y (range numHigh)]
-                             (list x y))
-                 e-points (shuffle (filter in-e? allPoints))
-                 not-e-points (shuffle (filter #(not (in-e? %)) allPoints))
-                 points (concat 
-                          (take 
-                            (/ (count e-points) 3)
-                            ;(/ (count not-e-points) (count polygons)) 
-                            e-points) 
-                          not-e-points)
-                 totalHeight (/ (q/height) 2)
-                 totalWidth totalHeight
-                 eachWide (/ totalWidth numWide)
-                 eachHigh (/ totalHeight numHigh)]
-             (loop [ps points
-                    pgs polygons]
-               (if (empty? ps)
-                 pgs
-                 (let [x (first (first ps))
-                       y (second (first ps))
-                       rect (geomerative.RPolygon/createRectangle
-                              (* x eachWide) (* y eachHigh)
-                              eachWide eachHigh)]
-                   (if (in-e? (first ps))
-                     (recur (rest ps) 
-                            (mapv #(.xor % rect) pgs))
-                     (let [select (int (rand (count pgs)))]
-                       (if true;(< 0.5 (rand))
-                         (recur (rest ps)
-                                (update pgs
-                                        select
-                                        #(.xor % rect)))
-                         (recur (rest ps)
-                                (update-vals 
-                                  pgs 
-                                  [select (mod (inc select) (count pgs))]
-                                  #(.xor % rect))))))))))]
-      (mapv #(.translate %
-                         paddingW
-                         paddingH)
-            polys)
-      polys)))
 
 (defn clean-up [polygon]
   (let [updated (.update polygon)

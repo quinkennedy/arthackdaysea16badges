@@ -47,39 +47,13 @@
      :badge-rect  badge-rect
      :names       (map (fn [line] (take 2 (clojure.string/split line #",")))
                        (clojure.string/split-lines 
-                         (slurp "/media/data/docs/me/art-hack-day/badges/data/participants.csv")))
+                         (slurp "/media/data/docs/me/art-hack-day/badges/data/test_small.csv")))
      }))
 
 (defn translate-polygon [polygon x y]
   (let [clone (.toPolygon polygon)]
     (.translate clone x y)
     clone))
-
-(defn get-offset-polys [group font num-colors]
-  (let [line-width (:width (util/getBounds (.getPoints (.toGroup font "i"))))
-        poly (.toPolygon group)
-        polys (take num-colors (repeatedly #(.toPolygon group)))
-        badge-rect  (geomerative.RPolygon/createRectangle
-                      0 0 (q/width) (q/height))
-        ]
-    (map #(.xor
-            badge-rect
-            %)
-         (doall
-           (loop [accumulatedPolys (take num-colors 
-                                         (repeatedly #(.toPolygon group)))
-                  j                0]
-             (if (= j 10)
-               accumulatedPolys
-               (let [offsets (map #(util/polar-to-cartesian
-                                     (* line-width j)
-                                     (/ (* Math/PI 2 %) num-colors))
-                                  (range num-colors))]
-                 (recur (map #(.union %1 (translate-polygon %2 (first %3) (second %3)))
-                             accumulatedPolys
-                             (repeat poly)
-                             offsets)
-                        (inc j)))))))))
 
 (defn update-state [state]
   (let [];patterns  (take 2 (repeatedly #(apply
@@ -88,9 +62,17 @@
     ;(util/apply-dots (first patterns) false)
     ;;(util/apply-dots (second patterns) true)
     ;(util/apply-lines (second patterns))
+    (if (= 1 (count (:names state)))
+      (util/finish-pdf state))
     (merge state
            {:frame (inc (:frame state))
-            :names (:names state)
+            :names (rest (:names state))
+            :images (or (:images state) [(q/create-image (first util/print-px)
+                                                         (second util/print-px)
+                                                         :argb)
+                                         (q/create-image (first util/print-px)
+                                                         (second util/print-px)
+                                                         :argb)])
     ;        :patterns patterns
                          })))
 
@@ -157,46 +139,32 @@
                  Math/PI 
                  (/ (first util/print-px) 2) 
                  (/ (second util/print-px) 2))
-        ;(println (str "render" (first (first (:names state)))))
         ;draw to off-screen buffers
         (dorun
           (for [i (range (count (:graphics state)))]
             (do
               (util/draw-it
                 (:altGraphic state)
-                ;(util/things-to-geom
-                ;  (take-nth 2 (drop i grown-polygons)))
-                ;[255])
-                (.intersection
-                  badge-rect
+                ;(.intersection
+                ;  badge-rect
                   (.union
                     (.diff
                       (util/things-to-geom
                         (take-nth 2 (drop i grown-polygons)))
                       name-poly)
-                    (nth [event-poly event-poly-ud] i)))
+                    (nth [event-poly event-poly-ud] i))
                 [255])
-              (q/with-graphics
-                (nth (:graphics state) i)
-                (q/background 255)
-                ;(q/image (:altGraphic state) 0 0)))))
-                (let [img (.copy (nth (:patterns state) i))]
-                (do
-                  (q/mask-image
-                    img
-                    ;(.copy (nth (:patterns state) i))
-                    (.copy (:altGraphic state)))
-                    (q/image img 0 0)))))))
-
-              ;(util/get-color i))))
-        ;(util/draw-polygons
-        ;  (first (:graphics state))
-        ;  (util/get-color 0)
-        ;  (take-nth 2 grown-polygons))
-        ;(util/draw-polygons
-        ;  (second (:graphics state))
-        ;  (util/get-color 1)
-        ;  (take-nth 2 (rest grown-polygons)))
+              (.copy (nth (:images state) i)
+                     (:altGraphic state)
+                     0 0 (first util/print-px) (second util/print-px)
+                     0 0 (first util/print-px) (second util/print-px))
+              (let [img (.copy (nth (:patterns state) i))
+                    msk (.copy (:altGraphic state))]
+                (q/with-graphics
+                  (nth (:graphics state) i)
+                  (q/background 255)
+                    (q/mask-image img msk)
+                    (q/image img 0 0))))))
         ;combine buffers on-screen
         (q/blend-mode :multiply)
         (let [g (first (:graphics state))
@@ -213,8 +181,8 @@
                     (- height (+ (* 68 (/ util/print-dpi
                                           util/screen-dpi)) 
                                  (* util/print-dpi util/safety))))))
-        ;(q/push-matrix)
-        ;(q/scale (/ util/screen-dpi util/print-dpi))
+        (q/push-matrix)
+        (q/scale (/ util/screen-dpi util/print-dpi))
         (dorun
           (for [i (range (count (:patterns state)))]
             ;(do
@@ -231,7 +199,8 @@
             ;(q/image (nth (:graphics state) i) 0 0)))
             ;(q/image (nth (:patterns state) i) 0 0)))
             (q/image (nth (:graphics state) i) 0 0)))
-        ;(q/pop-matrix)
+        (q/pop-matrix)
+        ;draw print guides
         (q/blend-mode :blend)
         (let [d 0.28]
           (q/with-fill [0 255 255]
@@ -256,5 +225,6 @@
                       safe-px
                       (- (q/width) (* safe-px 2))
                       (- (q/height) (* safe-px 2))))))
+        (util/to-pdf state)
         (when (= (:frame state) 1)
           (util/save state))))))
