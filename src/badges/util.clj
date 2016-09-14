@@ -28,29 +28,25 @@
              ])
 
 (defn add-corner-cut-marks [pdf]
-  (let [out-line (* pdf-dpi (+ print-margin bleed))
-        inh-line (+ out-line (* pdf-dpi (first finish-size)))
-        inv-line (+ out-line (* pdf-dpi (second finish-size)))
-        start-line (* pdf-dpi (- print-margin (/ bleed 2)))
+  (let [out-line (* pdf-dpi bleed)
+        start-line (* pdf-dpi (- (/ bleed 2)))
         end-line (+ start-line (* pdf-dpi bleed))]
     (q/line out-line start-line out-line end-line)
-    (q/line inh-line start-line inh-line end-line)
-    (q/line start-line out-line end-line out-line)
-    (q/line start-line inv-line end-line inv-line)))
+    (q/line start-line out-line end-line out-line)))
 
 (defn add-cut-marks [pdf]
   (add-corner-cut-marks pdf)
   (q/push-matrix)
-  (q/translate (* (+ (first inch-size) print-margin) 2 pdf-dpi) 0)
+  (q/translate (* (first inch-size) pdf-dpi) 0)
   (q/scale -1 1)
   (add-corner-cut-marks pdf)
   (q/pop-matrix)
   (q/push-matrix)
-  (q/translate 0 (* (+ (second inch-size) print-margin) 2 pdf-dpi))
+  (q/translate 0 (* (second inch-size) pdf-dpi))
   (q/scale 1 -1)
   (add-corner-cut-marks pdf)
   (q/push-matrix)
-  (q/translate (* (+ (first inch-size) print-margin) 2 pdf-dpi) 0)
+  (q/translate (* (first inch-size) pdf-dpi) 0)
   (q/scale -1 1)
   (add-corner-cut-marks pdf)
   (q/pop-matrix)
@@ -64,7 +60,6 @@
         (q/with-graphics
           (nth (:pdfs state) i)
           (when (and (zero? place) (not (zero? index)))
-            (add-cut-marks (nth (:pdfs state) i))
             (.nextPage (nth (:pdfs state) i)))
             (q/with-translation [(* pdf-dpi (+ print-margin 
                                                (* (mod place 2)
@@ -75,14 +70,15 @@
               (q/push-matrix)
               (q/scale (/ pdf-dpi print-dpi))
               (q/image (nth (:graphics state) i) 0 0)
-              (q/pop-matrix)))))))
+              (q/pop-matrix)
+              (add-cut-marks (nth (:pdfs state) i))
+              ))))))
 
 (defn finish-pdf [state]
   (doall
     (for [pdf (:pdfs state)]
       (q/with-graphics
         pdf
-        (add-cut-marks pdf)
         (.dispose pdf)))))
 
 (defn get-honeycomb-centers [num-wide width height]
@@ -103,7 +99,7 @@
         width (.-width graphics)
         height (.-height graphics)
         centers (get-honeycomb-centers num-wide width height)
-        diameter (* (/ width num-wide) 2/3)]
+        diameter (/ width num-wide 2)]
     (q/with-graphics
       graphics
       (q/clear)
