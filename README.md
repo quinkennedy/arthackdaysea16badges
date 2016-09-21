@@ -16,6 +16,15 @@ REPL - run `(require 'badges.core)`.
 's' - saves SVG and TIFF images
 'u' - rotates one layer upside-down
 
+## Thanks
+
+* [Ricard Marxer](http://www.ricardmarxer.com/) for [Geomerative](http://www.ricardmarxer.com/geomerative/)
+* [Karsten Schmidt](https://twitter.com/toxi) for [thi.ng](http://thi.ng/)
+  - Specifically [thi.ng/math](https://github.com/thi-ng/math/) and [thi.ng/geom](https://github.com/thi-ng/geom/)
+* [Lee Byron](http://leebyron.com) for [Mesh](http://leebyron.com/mesh/)
+* [Quil](http://quil.info/)
+* [Processing](https://processing.org/)
+
 ## License
 
 ISC License
