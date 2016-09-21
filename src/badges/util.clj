@@ -265,10 +265,6 @@
     [:width :height]
     + (* padding 2)))
 
-(defn polar-to-cartesian [radius angle]
-  [(* radius (Math/cos angle))
-   (* radius (Math/sin angle))])
-
 (defn get-event-poly [font width height side-space dpi]
   (let [text "ERASURE"
         order (shuffle (take 10 (concat (repeat (count text) true) (repeat false))))
